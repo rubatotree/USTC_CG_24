@@ -6,12 +6,13 @@
     "\\Homeworks\\0_cpp_warmup\\project",
     "\\Homeworks\\0_cpp_warmup\\project\\src",
     "\\Homeworks\\0_cpp_warmup\\project\\src\\executables",
+    "\\Homeworks\\0_cpp_warmup\\project\\src\\executables\\4_list_Polynomial",
     "\\Homeworks\\0_cpp_warmup\\project\\src\\executables\\5_map_Polynomial",
     "\\Homeworks\\0_cpp_warmup\\samples",
     "\\Homeworks\\0_cpp_warmup\\samples\\src",
     "\\Homeworks\\0_cpp_warmup\\samples\\src\\libraries",
     "\\Homeworks\\0_cpp_warmup\\samples\\src\\libraries\\shared"
   ],
-  "SelectedNode": "\\Homeworks\\0_cpp_warmup\\project\\src\\executables\\5_map_Polynomial\\test.cpp",
+  "SelectedNode": "\\Homeworks\\0_cpp_warmup\\project\\CMakeLists.txt",
   "PreviewInSolutionExplorer": false
 }
