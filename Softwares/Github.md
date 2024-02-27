@@ -37,27 +37,43 @@ Github Desktop是GitHub的客户端（桌面端）软件 ，它与GitHub进行�
 
 ### 1. 初始化
 
-- 使用 [the Import a Repository feature](https://github.com/new/import) 拷贝 `https://github.com/Ubpa/USTC_CG` 得到自己的**私有库** 
+- 使用 [the Import a Repository feature](https://github.com/new/import) 拷贝 `https://github.com/USTC-CG/USTC_CG_24` 得到自己的**私有库** 
 
 - 将该私有库 `clone` 到本地
 
 - 在库的本地根目录执行
 
   ```bash
-  git remote add upstream https://github.com/Ubpa/USTC_CG.git
+  git remote add upstream https://github.com/USTC-CG/USTC_CG_24.git
   git remote set-url --push upstream DISABLE
   ```
 
-### 2. 从 USTC_CG 拉取更新
+### 2. 从 USTC_CG_24 拉取更新 
+
+**助教会在此仓库发布作业框架、文档的更新，**
 
 - 在库的本地根目录执行
 
-  ```bash
-  git fetch upstream
-  ```
+```bash
+git fetch upstream
+```
 
-- 在 GitHub Desktop 中，点击菜单栏的 `branch->merge into current branch`，弹出的窗口中选择 other branches 的 `upstream/master` 
+  之后进行获取分支的合并。
 
-- 如果没有冲突，则可点击下边的 "Merge `upstream/master` into `master`“；否则，merge 时需要解决相应冲突才能 merge 成功
+合并方式有以下两种：
+
+#### 命令行方式
+
+```bash
+git merge upstream/main
+```
+
+然后可以使用visual studio code编辑器来解决冲突。
+
+#### Github Desktop 方式
+
+- 在 GitHub Desktop 中，点击菜单栏的 `branch->merge into current branch`，弹出的窗口中选择 other branches 的 `upstream/main` 
+
+- 如果没有冲突，则可点击下边的 "Merge `upstream/main` into `main`“；否则，merge 时需要解决相应冲突才能 merge 成功
 
 
