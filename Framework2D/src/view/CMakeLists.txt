@@ -5,7 +5,7 @@ file(GLOB source
   "${CMAKE_CURRENT_SOURCE_DIR}/shapes/*.cpp"
   "${INCLUDE_DIR}/view/shapes/*.h"
 )
-add_library(${PROJECT_NAME} ${source})
+add_library(${PROJECT_NAME} ${source} "shapes/ellipse.cpp")
 set_target_properties(${PROJECT_NAME} PROPERTIES 
   DEBUG_POSTFIX "_d"
   RUNTIME_OUTPUT_DIRECTORY "${BINARY_DIR}"

@@ -2,4 +2,5 @@ build/
 bin/
 libs/
 .vscode
+.vs
 imgui.ini

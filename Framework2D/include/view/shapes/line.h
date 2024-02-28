@@ -25,7 +25,7 @@ class Line : public Shape
     virtual ~Line() = default;
 
     // Overrides draw function to implement line-specific drawing logic
-    void draw(const Config& config) const override;
+    void draw(float bias[2]) const override;
 
     // Overrides Shape's update function to adjust the end point during
     // interaction

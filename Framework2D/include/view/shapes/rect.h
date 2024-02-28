@@ -26,7 +26,7 @@ class Rect : public Shape
 
     // Draws the rectangle on the screen
     // Overrides draw function to implement rectangle-specific drawing logic
-    void draw(const Config& config) const override;
+    void draw(float bias[2]) const override;
 
     // Overrides Shape's update function to adjust the rectangle size during
     // interaction

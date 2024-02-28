@@ -41,8 +41,8 @@ class Window
 
     std::string name_;              // Name (title) of the window.
     GLFWwindow* window_ = nullptr;  // Pointer to the GLFW window.
-    int width_ = 1280;              // Width of the window.
-    int height_ = 720;              // Height of the window.
+    int width_ = 1440;              // Width of the window.
+    int height_ = 960;              // Height of the window.
 };
 
 }  // namespace USTC_CG
