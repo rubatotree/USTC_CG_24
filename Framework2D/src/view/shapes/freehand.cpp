@@ -17,7 +17,6 @@ Freehand::Freehand(
     addPoint(start_point_x, start_point_y);
 }
 
-// Draw the line using ImGui
 void Freehand::draw(float bias[2]) const
 {
     ImDrawList* draw_list = ImGui::GetWindowDrawList();
@@ -36,23 +35,6 @@ void Freehand::draw(float bias[2]) const
             color,
             config_.line_thickness);
     }
-    
-    /*
-    // 这样也无法避免线条边缘缝隙的问题
-    int size = pointlist.size();
-    auto points = new ImVec2[size];
-    for (int i = 0; i < size; i++)
-    {
-        points[i] =
-            ImVec2(bias[0] + pointlist[i].first, bias[1] + pointlist[i].second);
-    }
-    draw_list->AddPolyline(
-        points,
-        size,
-        color,
-        ImDrawFlags_::ImDrawFlags_RoundCornersAll,
-        config_.line_thickness);*/
-
     // 在节点处画圆，防止裂缝
     for (int i = 0; i < pointlist.size(); i++)
     {

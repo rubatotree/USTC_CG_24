@@ -17,7 +17,6 @@ Polygon::Polygon(
     addPoint(start_point_x, start_point_y);
 }
 
-// Draw the line using ImGui
 void Polygon::draw(float bias[2]) const
 {
     ImDrawList* draw_list = ImGui::GetWindowDrawList();
@@ -49,23 +48,7 @@ void Polygon::draw(float bias[2]) const
             config_.line_thickness);
     }
 
-    // 在节点处画圆，防止裂缝
-    // 线的平滑边缘导致该部分效果并不好
-    /*for (int i = 0; i < pointlist.size(); i++)
-    {
-        draw_list->AddCircleFilled(
-            ImVec2(
-                bias[0] + pointlist[i].first,
-                bias[1] + pointlist[i].second),
-            config_.line_thickness / 2,
-            color,
-            16);
-    }
-    draw_list->AddCircleFilled(
-        ImVec2(bias[0] + end_point_x_, bias[1] + end_point_y_),
-        config_.line_thickness / 2,
-        color,
-        16);*/
+    delete[] points;
 }
 
 // 返回添加该点后多边形绘制是否结束
