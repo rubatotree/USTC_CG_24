@@ -1,6 +1,10 @@
 #include "comp_warping.h"
-
+#include "annoylib.h"
+#include "kissrandom.h"
 #include <cmath>
+#include <iostream>
+#include <ctime>
+using namespace Annoy;
 
 namespace USTC_CG
 {
@@ -20,6 +24,29 @@ void CompWarping::draw()
     // Draw the canvas
     if (flag_enable_selecting_points_)
         select_points();
+}
+void CompWarping::draw_control_points()
+{
+    if (!control_point_visible_)
+        return;
+    auto draw_list = ImGui::GetWindowDrawList();
+    for (size_t i = 0; i < start_points_.size(); ++i)
+    {
+        ImVec2 s(
+            start_points_[i].x + position_.x, start_points_[i].y + position_.y);
+        ImVec2 e(
+            end_points_[i].x + position_.x, end_points_[i].y + position_.y);
+        draw_list->AddLine(s, e, IM_COL32(255, 0, 0, 255), 2.0f);
+        draw_list->AddCircleFilled(s, 4.0f, IM_COL32(0, 0, 255, 255));
+        draw_list->AddCircleFilled(e, 4.0f, IM_COL32(0, 255, 0, 255));
+    }
+    if (draw_status_)
+    {
+        ImVec2 s(start_.x + position_.x, start_.y + position_.y);
+        ImVec2 e(end_.x + position_.x, end_.y + position_.y);
+        draw_list->AddLine(s, e, IM_COL32(255, 0, 0, 255), 2.0f);
+        draw_list->AddCircleFilled(s, 4.0f, IM_COL32(0, 0, 255, 255));
+    }
 }
 
 void CompWarping::invert()
@@ -107,47 +134,169 @@ void CompWarping::gray_scale()
 }
 void CompWarping::warping()
 {
-    // HW2_TODO: You should implement your own warping function that interpolate
-    // the selected points.
-    // You can design a class for such warping operations, utilizing the
-    // encapsulation, inheritance, and polymorphism features of C++. More files
-    // like "*.h", "*.cpp" can be added to this directory or anywhere you like.
-
-    // Create a new image to store the result
+    int size = start_points_.size(), width = data_->width(), height = data_->height();
+    // 预处理图像
     Image warped_image(*data_);
-    // Initialize the color of result image
-    for (int y = 0; y < data_->height(); ++y)
+    
+    for (int y = 0; y < height; ++y)
     {
-        for (int x = 0; x < data_->width(); ++x)
+        for (int x = 0; x < width; ++x)
         {
             warped_image.set_pixel(x, y, { 0, 0, 0 });
         }
     }
+    
+    // 初始化 warper
+    ImageWarpingAlgorithm* warper = nullptr;
 
-    // Example: (simplified) "fish-eye" warping
-    // For each (x, y) from the input image, the "fish-eye" warping transfer it
-    // to (x', y') in the new image:
-    // Note: For this transformation ("fish-eye" warping), one can also
-    // calculate the inverse (x', y') -> (x, y) to fill in the "gaps".
-    for (int y = 0; y < data_->height(); ++y)
+    if (image_warping_algorithm_type_ == Warping_IDW)
     {
-        for (int x = 0; x < data_->width(); ++x)
+        warper = new WarpingIDW(idw_mu_);
+        std::cout << "Algorithm: IDW" << std::endl;
+    }
+    else if (image_warping_algorithm_type_ == Warping_RBF)
+    {
+        warper = new WarpingRBF(rbf_r_, rbf_mu_);
+        std::cout << "Algorithm: RBF" << std::endl;
+    }
+    else if (image_warping_algorithm_type_ == Warping_Fisheye)
+    {
+        warper = new WarpingFisheye(width, height);
+        std::cout << "Algorithm: Fisheye" << std::endl;
+    }
+
+    assert(warper != nullptr);
+
+    bool ann = fill_hole_algorithm_type_ == FillHole_ANN;
+    bool reverse = fill_hole_algorithm_type_ == FillHole_Reverse;
+
+    if (ann)
+        std::cout << "Fill Hole Method: ANN (" << ann_sample_n_ << " Sample(s))"
+                  << std::endl;
+    else if (reverse)
+        std::cout << "Fill Hole Method: Reverse" << std::endl;
+    else 
+        std::cout << "Fill Hole Method: None" << std::endl;
+
+    // 初始化 ANN
+    AnnoyIndex<
+        int,
+        float,
+        Euclidean,
+        Kiss32Random,
+        AnnoyIndexSingleThreadedBuildPolicy>
+        index(2);
+    vector<bool> visited;   // 标记像素点是否着色
+    visited.resize(width * height, false);
+    
+    // 将数据载入 warper
+    for (int i = 0; i < size; i++)
+    {
+        if (!reverse)
         {
-            // Apply warping function to (x, y), and we can get (x', y')
-            auto [new_x, new_y] =
-                fisheye_warping(x, y, data_->width(), data_->height());
-            // Copy the color from the original image to the result image
-            if (new_x >= 0 && new_x < data_->width() && new_y >= 0 &&
-                new_y < data_->height())
+            warper->AddSample(
+                start_points_[i].x,
+                start_points_[i].y,
+                end_points_[i].x,
+                end_points_[i].y);
+        }
+        else
+        {
+            warper->AddSample(
+                end_points_[i].x,
+                end_points_[i].y,
+                start_points_[i].x,
+                start_points_[i].y);
+        }
+    }
+    std::cout << "Number of Control Points: " << size << std::endl;
+    std::cout << "Image Size:  " << width << " * " << height << std::endl;
+
+    // 计时起点
+    clock_t timer = clock();
+    warper->Update();
+    for (int y = 0; y < height; ++y)
+    {
+        for (int x = 0; x < width; ++x)
+        {
+            Point new_pos = warper->Transform(Point(x, y));
+            int new_x = static_cast<int>(new_pos.x);
+            int new_y = static_cast<int>(new_pos.y);
+            if (new_x >= 0 && new_x < width && new_y >= 0 &&
+                new_y < height)
             {
-                std::vector<unsigned char> pixel = data_->get_pixel(x, y);
-                warped_image.set_pixel(new_x, new_y, pixel);
+                if (!reverse)
+                {
+                    // None
+                    std::vector<unsigned char> pixel = data_->get_pixel(x, y);
+                    warped_image.set_pixel(new_x, new_y, pixel);
+                    if (ann)
+                    {
+                        // ANN
+                        std::vector<float> vec;
+                        vec.resize(2, 0);
+                        vec[0] = (float)new_x;
+                        vec[1] = (float)new_y;
+                        index.add_item(width * new_y + new_x, vec.data());
+                        visited[width * new_y + new_x] = true;
+                    }
+                }
+                else
+                {
+                    // Reverse
+                    std::vector<unsigned char> pixel = data_->get_pixel(new_x, new_y);
+                    warped_image.set_pixel(x, y, pixel);
+                }
             }
         }
     }
-
+    if (ann)
+    {
+        // ANN
+        index.build(ann_sample_n_);
+        
+        for (int y = 0; y < height; ++y)
+        {
+            for (int x = 0; x < width; ++x)
+            {
+                if (!visited[y * width + x])
+                {
+                    std::vector<int> closest_items;
+                    std::vector<float> distances;
+                    std::vector<float> vec;
+                    vec.resize(2, 0);
+                    vec[0] = (float)x;
+                    vec[1] = (float)y;
+                    index.get_nns_by_vector(
+                        vec.data(),
+                        ann_sample_n_,
+                        -1,
+                        &closest_items,
+                        &distances);
+                    float r = 0, g = 0, b = 0;
+                    for (int i = 0; i < closest_items.size(); ++i)
+                    {
+                        auto pixel = warped_image.get_pixel(closest_items[i] % width, closest_items[i] / width);
+                        r += pixel[0];
+                        g += pixel[1];
+                        b += pixel[2];
+                    }
+                    std::vector<unsigned char> pixel;
+                    pixel.resize(3, 0);
+                    pixel[0] = static_cast<unsigned char>(r / closest_items.size());
+                    pixel[1] = static_cast<unsigned char>(g / closest_items.size());
+                    pixel[2] = static_cast<unsigned char>(b / closest_items.size());
+                    warped_image.set_pixel(x, y, pixel);
+                }
+            }
+        }
+    }
+    std::cout << "Time: " << ((double)(clock() - timer)) / CLK_TCK << "s" << std::endl;
+    std::cout << std::endl;
     *data_ = std::move(warped_image);
     update();
+
+    delete warper;
 }
 void CompWarping::restore()
 {
@@ -188,53 +337,11 @@ void CompWarping::select_points()
             draw_status_ = false;
         }
     }
-    // Visualization
-    auto draw_list = ImGui::GetWindowDrawList();
-    for (size_t i = 0; i < start_points_.size(); ++i)
-    {
-        ImVec2 s(
-            start_points_[i].x + position_.x, start_points_[i].y + position_.y);
-        ImVec2 e(
-            end_points_[i].x + position_.x, end_points_[i].y + position_.y);
-        draw_list->AddLine(s, e, IM_COL32(255, 0, 0, 255), 2.0f);
-        draw_list->AddCircleFilled(s, 4.0f, IM_COL32(0, 0, 255, 255));
-        draw_list->AddCircleFilled(e, 4.0f, IM_COL32(0, 255, 0, 255));
-    }
-    if (draw_status_)
-    {
-        ImVec2 s(start_.x + position_.x, start_.y + position_.y);
-        ImVec2 e(end_.x + position_.x, end_.y + position_.y);
-        draw_list->AddLine(s, e, IM_COL32(255, 0, 0, 255), 2.0f);
-        draw_list->AddCircleFilled(s, 4.0f, IM_COL32(0, 0, 255, 255));
-    }
+    draw_control_points();
 }
 void CompWarping::init_selections()
 {
     start_points_.clear();
     end_points_.clear();
-}
-
-std::pair<int, int>
-CompWarping::fisheye_warping(int x, int y, int width, int height)
-{
-    float center_x = width / 2.0f;
-    float center_y = height / 2.0f;
-    float dx = x - center_x;
-    float dy = y - center_y;
-    float distance = std::sqrt(dx * dx + dy * dy);
-
-    // Simple non-linear transformation r -> r' = f(r)
-    float new_distance = std::sqrt(distance) * 10;
-
-    if (distance == 0)
-    {
-        return { static_cast<int>(center_x), static_cast<int>(center_y) };
-    }
-    // (x', y')
-    float ratio = new_distance / distance;
-    int new_x = static_cast<int>(center_x + dx * ratio);
-    int new_y = static_cast<int>(center_y + dy * ratio);
-
-    return { new_x, new_y };
 }
 }  // namespace USTC_CG

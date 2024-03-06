@@ -4,3 +4,6 @@ libs/
 .vscode
 .vs
 imgui.ini
+third_party/
+*.png
+_deps/

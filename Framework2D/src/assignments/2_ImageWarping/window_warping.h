@@ -17,6 +17,7 @@ class ImageWarping : public Window
 
    private:
     void draw_toolbar();
+    void draw_image_warping_options();
     void draw_image();
     void draw_open_image_file_dialog();
     void draw_save_image_file_dialog();

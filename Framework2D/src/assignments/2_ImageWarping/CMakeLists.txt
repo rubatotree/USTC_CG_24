@@ -3,7 +3,7 @@ file(GLOB source
   "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/*.h" 
 )
-add_executable(${PROJECT_NAME} ${source})
+add_executable(${PROJECT_NAME} ${source} "image_warping_algorithms/idw.cpp" "image_warping_algorithms/rbf.cpp" "image_warping_algorithms/fisheye.cpp")
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 set_target_properties(${PROJECT_NAME} PROPERTIES 
   DEBUG_POSTFIX "_d"
