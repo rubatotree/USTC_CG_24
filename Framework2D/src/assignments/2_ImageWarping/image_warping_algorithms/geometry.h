@@ -1,6 +1,7 @@
 #pragma once
 #include <cmath>
-
+namespace USTC_CG
+{
 // 自己写的计算几何库
 struct Vector
 {
@@ -106,3 +107,4 @@ struct Matrix22
         return Matrix22(base[1].y, -base[1].x, -base[0].y, base[0].x) / det();
     }
 };
+}  // namespace USTC_CG

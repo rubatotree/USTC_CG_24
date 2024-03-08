@@ -1,6 +1,8 @@
-#include "image_warping_algorithms/rbf.h"
+#include "rbf.h"
 #include <algorithm>
 
+namespace USTC_CG
+{
 int WarpingRBF::dist(int i, int j)
 {
     return (samples[i].src - samples[i].dest).length_sqr();
@@ -31,7 +33,8 @@ Point WarpingRBF::Transform(Point src)
 void WarpingRBF::Update()
 {
     int size = samples.size();
-    Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> Mat_coff(size + 3, size + 3);
+    Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> Mat_coff(
+        size + 3, size + 3);
     for (int i = 0; i < size; i++)
         for (int j = 0; j < size; j++)
             Mat_coff(i, j) = func(j, samples[i].src);
@@ -84,11 +87,14 @@ void WarpingRBF::Update()
     {
         AlphaX(0) = AlphaY(0) = 0;
         AlphaX(1) = AlphaY(1) = 0;
-        AlphaX(2) = (samples[1].dest - samples[0].dest).x / (samples[1].src - samples[0].src).x;
+        AlphaX(2) = (samples[1].dest - samples[0].dest).x /
+                    (samples[1].src - samples[0].src).x;
         AlphaY(2) = 0;
         AlphaX(3) = 0;
-        AlphaY(3) = (samples[1].dest - samples[0].dest).y / (samples[1].src - samples[0].src).y;
+        AlphaY(3) = (samples[1].dest - samples[0].dest).y /
+                    (samples[1].src - samples[0].src).y;
         AlphaX(4) = samples[0].dest.x - AlphaX(2) * samples[0].src.x;
         AlphaY(4) = samples[0].dest.y - AlphaY(3) * samples[0].src.y;
     }
 }
+}  // namespace USTC_CG

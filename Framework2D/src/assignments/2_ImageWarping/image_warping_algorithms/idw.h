@@ -3,6 +3,8 @@
 #include <Eigen/Dense>
 #include "image_warping.h"
 
+namespace USTC_CG
+{
 class WarpingIDW : public ImageWarpingAlgorithm
 {
    public:
@@ -19,3 +21,4 @@ class WarpingIDW : public ImageWarpingAlgorithm
     float mu_ = 2;
     std::vector<Matrix22> transform_matrix_;
 };
+}  // namespace USTC_CG

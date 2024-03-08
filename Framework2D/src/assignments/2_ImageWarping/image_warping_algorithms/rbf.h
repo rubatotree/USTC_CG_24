@@ -3,7 +3,8 @@
 #include <Eigen/Dense>
 
 #include "image_warping.h"
-
+namespace USTC_CG
+{
 class WarpingRBF : public ImageWarpingAlgorithm
 {
    public:
@@ -28,3 +29,4 @@ class WarpingRBF : public ImageWarpingAlgorithm
     double func(int base, Point src);
     Eigen::VectorXd AlphaX, AlphaY;
 };
+}  // namespace USTC_CG

@@ -4,7 +4,7 @@ diagrams:
   1_MiniDraw:
     type: class
     glob:
-      - ./src/assignments/1_MiniDraw/main.cpp
+      - ./src/assignments/2_ImageWarping/main.cpp
     using_namespace: USTC_CG
     include:
       namespaces:

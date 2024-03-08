@@ -3,10 +3,15 @@
 #include <tuple>
 #include "geometry.h"
 
+namespace USTC_CG
+{
 class ImageWarpingAlgorithm
 {
    public:
-    struct Sample { Point src, dest; };
+    struct Sample
+    {
+        Point src, dest;
+    };
 
     void AddSample(Sample sample)
     {
@@ -25,3 +30,4 @@ class ImageWarpingAlgorithm
    protected:
     std::vector<Sample> samples;
 };
+}  // namespace USTC_CG

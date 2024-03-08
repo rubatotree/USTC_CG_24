@@ -1,5 +1,7 @@
-#include "image_warping_algorithms/fisheye.h"
+#include "fisheye.h"
 
+namespace USTC_CG
+{
 Point WarpingFisheye::Transform(Point src)
 {
     float center_x = width_ / 2.0f;
@@ -25,3 +27,4 @@ Point WarpingFisheye::Transform(Point src)
 void WarpingFisheye::Update()
 {
 }
+}  // namespace USTC_CG
