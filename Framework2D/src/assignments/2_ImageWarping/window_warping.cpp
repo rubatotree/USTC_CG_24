@@ -8,9 +8,14 @@ namespace USTC_CG
 {
 ImageWarping::ImageWarping(const std::string& window_name) : Window(window_name)
 {
+    /*
+    // 这里是测试所用的预设
+
     std::string filePathName = "C:\\Users\\Admin\\Documents\\GitHub\\USTC_CG_24\\Homeworks\\2_image_warping\\data\\test.png";
     std::string label = filePathName;
     p_image_ = std::make_shared<CompWarping>(label, filePathName);
+
+    // Preset 1
     p_image_->add_control_points(0, 0, 0, 0);
     p_image_->add_control_points(255, 0, 255, 0);
     p_image_->add_control_points(0, 255, 0, 255);
@@ -19,7 +24,19 @@ ImageWarping::ImageWarping(const std::string& window_name) : Window(window_name)
     p_image_->add_control_points(255 - 32, 64, 255 - 64, 32);
     p_image_->add_control_points(32, 255 - 64, 64, 255 - 32);
     p_image_->add_control_points(255 - 64, 255 - 32, 255 - 32, 255 - 64);
+
+    // Preset 2
+    p_image_->add_control_points(0, 0, 0, 0);
+    p_image_->add_control_points(255, 0, 255, 0);
+    p_image_->add_control_points(0, 255, 0, 255);
+    p_image_->add_control_points(255, 255, 255, 255);
+    p_image_->add_control_points(64, 127, 32, 127);
+    p_image_->add_control_points(255 - 64, 127, 255 - 32, 127);
+    p_image_->add_control_points(127, 64, 127, 32);
+    p_image_->add_control_points(127, 255 - 64, 127, 255 - 32);
+
     p_image_->enable_selecting(true);
+    */
 }
 ImageWarping::~ImageWarping()
 {
@@ -98,28 +115,23 @@ void ImageWarping::draw_toolbar()
 }
 void ImageWarping::draw_image_warping_options()
 {
+    // 未打开图片时不显示 options 窗口
+    if (!p_image_)
+        return;
+
     ImGui::Begin("Image Warping Options");
 
-    auto image_warping_algorithm_type = CompWarping::Warping_IDW;
-    auto fill_hole_algorithm_type = CompWarping::FillHole_None;
-    float idw_mu = 2;
-    float rbf_r = 30;
-    float rbf_mu = -1;
-    int ann_n = 3;
+    auto image_warping_algorithm_type = p_image_->get_image_warping_algorithm();
+    auto fill_hole_algorithm_type = p_image_->get_fill_hole_algorithm();
+    float idw_mu = p_image_->get_idw_mu();
+    float rbf_r = p_image_->get_rbf_r();
+    float rbf_mu = p_image_->get_rbf_mu();
+    int ann_n = p_image_->get_ann_sample_n();
 
-    if (p_image_)
-    {
-        image_warping_algorithm_type = p_image_->get_image_warping_algorithm();
-        fill_hole_algorithm_type = p_image_->get_fill_hole_algorithm();
-        idw_mu = p_image_->get_idw_mu();
-        rbf_r = p_image_->get_rbf_r();
-        rbf_mu = p_image_->get_rbf_mu();
-        ann_n = p_image_->get_ann_sample_n();
-    }
     ImGui::SameLine();
     if (image_warping_algorithm_type == CompWarping::Warping_IDW)
         ImGui::BeginDisabled();
-    if (ImGui::Button("IDW") && p_image_)
+    if (ImGui::Button("IDW"))
         p_image_->set_image_warping_algorithm(CompWarping::Warping_IDW);
     if (image_warping_algorithm_type == CompWarping::Warping_IDW)
         ImGui::EndDisabled();
@@ -127,7 +139,7 @@ void ImageWarping::draw_image_warping_options()
 
     if (image_warping_algorithm_type == CompWarping::Warping_RBF)
         ImGui::BeginDisabled();
-    if (ImGui::Button("RBF") && p_image_)
+    if (ImGui::Button("RBF"))
         p_image_->set_image_warping_algorithm(CompWarping::Warping_RBF);
     if (image_warping_algorithm_type == CompWarping::Warping_RBF)
         ImGui::EndDisabled();
@@ -135,7 +147,7 @@ void ImageWarping::draw_image_warping_options()
 
     if (image_warping_algorithm_type == CompWarping::Warping_Fisheye)
         ImGui::BeginDisabled();
-    if (ImGui::Button("Fisheye") && p_image_)
+    if (ImGui::Button("Fisheye"))
         p_image_->set_image_warping_algorithm(CompWarping::Warping_Fisheye);
     if (image_warping_algorithm_type == CompWarping::Warping_Fisheye)
         ImGui::EndDisabled();
@@ -144,7 +156,7 @@ void ImageWarping::draw_image_warping_options()
 
     if (fill_hole_algorithm_type == CompWarping::FillHole_None)
         ImGui::BeginDisabled();
-    if (ImGui::Button("None") && p_image_)
+    if (ImGui::Button("None"))
         p_image_->set_fill_hole_algorithm(CompWarping::FillHole_None);
     if (fill_hole_algorithm_type == CompWarping::FillHole_None)
         ImGui::EndDisabled();
@@ -152,7 +164,7 @@ void ImageWarping::draw_image_warping_options()
 
     if (fill_hole_algorithm_type == CompWarping::FillHole_ANN)
         ImGui::BeginDisabled();
-    if (ImGui::Button("ANN") && p_image_)
+    if (ImGui::Button("ANN"))
         p_image_->set_fill_hole_algorithm(CompWarping::FillHole_ANN);
     if (fill_hole_algorithm_type == CompWarping::FillHole_ANN)
         ImGui::EndDisabled();
@@ -160,7 +172,7 @@ void ImageWarping::draw_image_warping_options()
 
     if (fill_hole_algorithm_type == CompWarping::FillHole_Reverse)
         ImGui::BeginDisabled();
-    if (ImGui::Button("Reverse") && p_image_)
+    if (ImGui::Button("Reverse"))
         p_image_->set_fill_hole_algorithm(CompWarping::FillHole_Reverse);
     if (fill_hole_algorithm_type == CompWarping::FillHole_Reverse)
         ImGui::EndDisabled();
@@ -188,19 +200,16 @@ void ImageWarping::draw_image_warping_options()
 
     ImGui::NewLine();
 
-    if (ImGui::Button("Warping", ImVec2(180, 48)) && p_image_)
+    if (ImGui::Button("Warping", ImVec2(180, 48)))
     {
         p_image_->restore();
         p_image_->warping();
     }
 
-    if (p_image_)
-    {
-        p_image_->set_idw_mu(idw_mu);
-        p_image_->set_rbf_r(rbf_r);
-        p_image_->set_rbf_mu(rbf_mu);
-        p_image_->set_ann_sample_n(ann_n);
-    }
+    p_image_->set_idw_mu(idw_mu);
+    p_image_->set_rbf_r(rbf_r);
+    p_image_->set_rbf_mu(rbf_mu);
+    p_image_->set_ann_sample_n(ann_n);
     ImGui::End();
 }
 void ImageWarping::draw_image()
