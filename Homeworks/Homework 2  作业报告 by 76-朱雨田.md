@@ -12,7 +12,9 @@
 
 ![1709877887485](C:\Users\Admin\AppData\Roaming\Typora\typora-user-images\1709877887485.png)
 
-​	以下是本次作业的类图：
+​	以下是本次作业的部分类图：
+
+![1709906804989](C:\Users\Admin\AppData\Roaming\Typora\typora-user-images\1709906804989.png)
 
 ​	本次报告的图片对比采用以下两个控制点预设：
 
@@ -133,18 +135,18 @@ $$
 
 ​	该算法的流程是对于每一个像素，寻找其映射后的新位置。因为新位置有可能重复或超出边界，所以映射后的图像中一定会存在未被映射的区域，如下图第一行所示。
 
-​	助教的注释中描述的一种比较简单的方式是：互换控制点中映射与被映射的点来计算映射，以每个像素变形后映射后得到的坐标为采样坐标。这样就保证了图像变形后每个像素点都能找到其颜色值，且依然保证了要求的插值条件 $f(\boldsymbol{p} _ i) = \boldsymbol{q} _ i$ 。Optional 窗口中的 Reverse 即这种方法，如下图第二行所示。
+​	助教的注释中描述的一种比较简单的方式是：互换控制点中映射与被映射的点来计算映射，以每个像素变形后映射后得到的坐标为采样坐标。这样就保证了图像变形后每个像素点都能找到其颜色值，且依然保证了要求的插值条件 $f(\boldsymbol{p} _ i) = \boldsymbol{q} _ i$ 。Optional 窗口中的 Reverse 即这种方法，如下图第二、三行所示。
 
 ​	可以注意到其形变与补洞前的形变是有一定不同的，但控制点处都得到了正确的形变。
 
-​	另一种方法是对于未被映射的点，寻找其最近的被映射的点，以其颜色值（或以一系列最近点颜色值的平均值）为该点的颜色值。如果手动枚举最近的被映射的点，该算法的时间复杂度将达到于图像处理不可接受的 $O(m^2 n^2)$，因此我们需要一些空间划分数据结构来实现该目的。所幸的是，ANNoy 库为我们实现了该算法，只需安装并调用该库即可顺利完成该算法。Optional 窗口中的 ANN 即这种方法，效果如下图第三、四行所示（三个采样点平均）。有趣的是，ANNoy 库本身是 Spotify（音乐软件）为用户推送歌曲而设计的最近点查找库。在看到上传者是 Spotify，以及了解该用途的后感觉到很不可思议。
+​	另一种方法是对于未被映射的点，寻找其最近的被映射的点，以其颜色值（或以一系列最近点颜色值的平均值）为该点的颜色值。如果手动枚举最近的被映射的点，该算法的时间复杂度将达到于图像处理不可接受的 $O(m^2 n^2)$，因此我们需要一些空间划分数据结构来实现该目的。所幸的是，ANNoy 库为我们实现了该算法，只需安装并调用该库即可顺利完成该算法。Optional 窗口中的 ANN 即这种方法，效果如下图第四行所示（三个采样点平均）。有趣的是，ANNoy 库本身是 Spotify（音乐软件）为用户推送歌曲而设计的最近点查找库。在看到上传者是 Spotify，以及了解该用途的后感觉到很不可思议。
 
 | 算法        | 旋转                                                         | 膨胀                                                         |
 | ----------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
 | None+IDW    | ![](C:\Users\Admin\Documents\GitHub\USTC_CG_24\Homeworks\2_image_warping\data\images\none_1.png) | ![](C:\Users\Admin\Documents\GitHub\USTC_CG_24\Homeworks\2_image_warping\data\images\none_2.png) |
-| ANN+IDW     | ![](C:\Users\Admin\Documents\GitHub\USTC_CG_24\Homeworks\2_image_warping\data\images\ann_1.png) | ![](C:\Users\Admin\Documents\GitHub\USTC_CG_24\Homeworks\2_image_warping\data\images\ann_2.png) |
 | Reverse+IDW | ![](C:\Users\Admin\Documents\GitHub\USTC_CG_24\Homeworks\2_image_warping\data\images\reverse_idw_1.png) | ![](C:\Users\Admin\Documents\GitHub\USTC_CG_24\Homeworks\2_image_warping\data\images\reverse_idw_2.png) |
 | Reverse+RBF | ![](C:\Users\Admin\Documents\GitHub\USTC_CG_24\Homeworks\2_image_warping\data\images\reverse_rbf_1.png) | ![](C:\Users\Admin\Documents\GitHub\USTC_CG_24\Homeworks\2_image_warping\data\images\reverse_rbf_2.png) |
+| ANN+IDW     | ![](C:\Users\Admin\Documents\GitHub\USTC_CG_24\Homeworks\2_image_warping\data\images\ann_1.png) | ![](C:\Users\Admin\Documents\GitHub\USTC_CG_24\Homeworks\2_image_warping\data\images\ann_2.png) |
 
 
 
@@ -168,5 +170,7 @@ $$
 ​	部分向量运算我在 geometry.h 中手动封装了几个计算几何类（Point, Vector, Matrix22），可以有效简化向量运算的代码。
 
 ​	不足之处在于这次二周目作业我依然没有认真去读两个算法的论文，只是简单地根据文档实现了算法。阅读英文论文对我来说仍然是相当恐怖的事情，以后也要慢慢学会适应了。以及，图像变形的参数全部存在了 Image 里，这使得每次重新打开图像都会重置一遍参数，在操作上略微不友好。
+
+​	Visual Studio 里的类设计器不知道为什么检测不出来图像变形算法类。Windows 上又配不好 clang-uml，转到了 Linux 上才用上 clang-uml 生成了这次的类图。
 
 ​	这是本课程作业中“数学”的开始。一周目前曾经还怀疑过自己“能不能把这门课的数学啃下来”，做完 Homework 2 之后我逐渐开始相信自己了。遇到不会的数学就去学，带着问题去看，数学的学习也会有趣得多。同时从这里开始我也对计算机图形学有了更清晰的认知——不止是计算机，更是数学。
