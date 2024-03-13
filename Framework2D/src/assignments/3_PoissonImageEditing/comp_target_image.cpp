@@ -78,6 +78,9 @@ void CompTargetImage::clone()
         return;
 
     PointSet* point_set = source_image_->get_selected_point_set();
+    if (point_set == nullptr)
+        return;
+
     restore();
 
     PointI offset_tar = PointI(

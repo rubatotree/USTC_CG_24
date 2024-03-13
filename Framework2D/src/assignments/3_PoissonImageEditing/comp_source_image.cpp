@@ -212,6 +212,11 @@ void CompSourceImage::finish_drawing()
         default: break;
     }
     selected_point_set_ = new PointSet(polygon);
+    if (!selected_point_set_->status())
+    {
+        delete selected_point_set_;
+        selected_point_set_ = nullptr;
+    }
 }
 
 ImVec2 CompSourceImage::mouse_pos_in_image() const

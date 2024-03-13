@@ -1,5 +1,4 @@
 #pragma once
-
 #include <Eigen/Sparse>
 #include <vector>
 #include <tuple>
@@ -46,6 +45,31 @@ class PointSet
         kOut,
         kBoundary
     };
+    struct ETElement
+    {
+        // 很 OI 的代码
+        int ymax;
+        float x, dx;
+        ETElement* nxt;
+        ETElement(int ymax = 0, float x = 0, float dx = 0, ETElement* nxt = nullptr)
+            : ymax(ymax),
+              x(x),
+              dx(dx),
+              nxt(nxt)
+        {
+        }
+        ETElement(PointI p1, PointI p2)
+        {
+            assert(p1.y != p2.y);
+            if (p1.y > p2.y)
+                std::swap(p1, p2);
+            ymax = p2.y;
+            x = p1.x;
+            dx = (float)(p1.x - p2.x) / (float)(p1.y - p2.y);
+            nxt = nullptr;
+        }
+    };
+
     PointSet();
     PointSet(int width, int height);
     PointSet(
@@ -53,6 +77,10 @@ class PointSet
             polygon);  // 该构造函数接受一个多边形，并光栅化确定点集内元素。
     ~PointSet();
     void add_point(PointI point);
+    bool status()
+    {
+        return status_;
+    }
     PointType check(PointI point);
     PointI get_point_at(int index)
     {
@@ -75,10 +103,18 @@ class PointSet
    private:
     int xmin_, xmax_, ymin_, ymax_;
     int width_, height_;
+    bool status_ = false;
     std::vector<int> map_;
     std::vector<PointI> point_list_;
     SparseMatrix<float> matrix_;
-    SparseLU<SparseMatrix<float>, COLAMDOrdering<int>> split_;
+
+    SparseLU<SparseMatrix<float>, COLAMDOrdering<int>> solver_;
+
+    std::vector<ETElement*> et_;
+    ETElement* ael_head_ = nullptr;
+    void et_insert(int y, ETElement* obj);
+    void ael_insert(ETElement* obj);
+
     int point_to_1d_(PointI point);
     bool in_set(PointI point);
 };

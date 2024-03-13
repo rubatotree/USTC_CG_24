@@ -32,84 +32,137 @@ PointSet::PointSet(int width, int height)
 
 PointSet::PointSet(const std::vector<PointI>& polygon)
 {
-    int size = polygon.size();
-    if (size <= 1)
-        return;
-
-    // 这样首尾相接和首尾不相接的多边形都能正确被处理。
-    // 其实应该在光栅化里做到这步？
-    if (polygon[0] == polygon[size - 1])
-        size--;
-
-    if (size < 3)
-        return;
-
+    // Part0: 初始化
     width_ = 0;
     height_ = 0;
-    for (int i = 0; i < size; i++)
+    xmin_ = INT_MAX;
+    xmax_ = -INT_MAX;
+    ymin_ = INT_MAX;
+    ymax_ = -INT_MAX;
+
+    int size_vertice = polygon.size();
+
+    if (size_vertice < 3)
+        return;
+
+    for (int i = 0; i < size_vertice; i++)
     {
-        width_ = std::max(width_, polygon[i].x + 1);
-        height_ = std::max(height_, polygon[i].y + 1);
+        xmin_ = std::min(xmin_, polygon[i].x);
+        ymin_ = std::min(ymin_, polygon[i].y);
+        xmax_ = std::max(xmax_, polygon[i].x);
+        ymax_ = std::max(ymax_, polygon[i].y);
     }
+    width_ = xmax_ + 1;
+    height_ = ymax_ + 1;
+
     map_.resize(width_ * height_, -1);
-    xmin_ = 0;
-    xmax_ = 0;
-    ymin_ = 0;
-    ymax_ = 0;
-
-    // HW3_TODO：暴力算法改为AEL
+    
+    // Part1: 扫描线光栅化
+    // AEL 有序边表光栅化算法
     // http://staff.ustc.edu.cn/~lfdong/teach/acg2010-bk/chp7-2.pdf
-    std::vector<int> intersects;
-    for (int i = 0; i < height_; i++)
+
+    et_.resize(ymax_ + 1, nullptr);
+    ael_head_ = nullptr;
+
+    for (int j = 0; j < size_vertice; j++)
     {
-        double y = i;
-        intersects.clear();
+        PointI p1 = polygon[j], p2 = polygon[(j + 1) % size_vertice];
+        if (p1.y == p2.y)
+            continue;
+        if (p1.y > p2.y)
+            std::swap(p1, p2);
+        et_insert(p1.y, new ETElement(p1, p2));
+    }
 
-        // 不考虑所有与顶点相交
-        for (int j = 0; j < size; j++)
+    int y = ymin_;
+    do
+    {
+        for (ETElement* itr = et_[y]; itr != nullptr; itr = itr->nxt)
         {
-            double x1 = polygon[j].x, x2 = polygon[(j + 1) % size].x;
-            double y1 = polygon[j].y, y2 = polygon[(j + 1) % size].y;
-            if ((y1 - y) * (y2 - y) < 0)
+            ael_insert(new ETElement(itr->ymax, itr->x, itr->dx, nullptr));
+        }
+        bool fill = false;
+        for (ETElement* itr = ael_head_; itr != nullptr; itr = itr->nxt)
+        {
+            fill = !fill;
+            if (fill)
             {
-                int x = (int)round((y - y1) * (x2 - x1) / (y2 - y1) + x1);
-                intersects.push_back(x);
+                if (itr->nxt == nullptr)
+                    break;
+                // 四舍五入取整，闭区间
+                int x1 = round(itr->x), x2 = round(itr->nxt->x);
+                for (int x = x1; x <= x2; x++)
+                {
+                    PointI point = PointI(x, y);
+                    map_[point_to_1d_(point)] = point_list_.size();
+                    point_list_.push_back(point);
+                }
             }
         }
-        // 再逐个与顶点判断计算
-        for (int j = 0; j < size; j++)
+        
+        y++;
+        if (y > ymax_)
+            break;
+
+        while (ael_head_ != nullptr && ael_head_->ymax == y)
         {
-            if (y == polygon[j].y)
+            auto tmp = ael_head_;
+            ael_head_ = ael_head_->nxt;
+            delete tmp;
+        }
+        for (ETElement* itr = ael_head_; itr != nullptr && itr->nxt != nullptr; itr = itr->nxt)
+        {
+            while (itr->nxt != nullptr && itr->nxt->ymax == y)
             {
-                int y1 = polygon[(j - 1 + size) % size].y,
-                    y2 = polygon[(j + 1) % size].y;
-                if (y1 > y)
-                    intersects.push_back(polygon[j].x);
-                if (y2 > y)
-                    intersects.push_back(polygon[j].x);
+                auto tmp = itr->nxt;
+                itr->nxt = itr->nxt->nxt;
+                delete tmp;
             }
         }
-
-        sort(intersects.begin(), intersects.end());
-        int size2 = intersects.size();
-        assert(size2 % 2 == 0);
-        for (int j = 0; j < size2; j += 2)
+        
+        // 重排序
+        ETElement* tmp_head_ = ael_head_;
+        ael_head_ = nullptr;
+        for (ETElement* itr = tmp_head_; itr != nullptr; itr = itr->nxt)
         {
-            int begin_ = intersects[j], end_ = intersects[j + 1];
-            for (int k = begin_; k <= end_; k++)
-            {
-                add_point(PointI(k, i));
-            }
+            ael_insert(
+                new ETElement(itr->ymax, itr->x + itr->dx, itr->dx, nullptr));
+        }
+        for (ETElement* itr = tmp_head_; itr != nullptr;)
+        {
+            auto tmp = itr;
+            itr = itr->nxt;
+            delete tmp;
+        }
+    }
+    while (y <= ymax_);
+
+    for (ETElement* itr = ael_head_; itr != nullptr; )
+    {
+        auto tmp = itr;
+        itr = itr->nxt;
+        delete tmp;
+    }
+    for (int y = ymin_; y <= ymax_; y++)
+    {
+        for (ETElement* itr = et_[y]; itr != nullptr; )
+        {
+            auto tmp = itr;
+            itr = itr->nxt;
+            delete tmp;
         }
     }
 
-    // 预处理矩阵
-    int size3 = point_list_.size();
+    if (point_list_.size() == 0)
+        return;
+
+    // Part2: 预处理矩阵
+    int size_points = point_list_.size();
 
     typedef Triplet<float> T;
     std::vector<T> tripletList;
-    tripletList.reserve(size3 * 5);
-    for (int i = 0; i < size3; i++)
+    tripletList.reserve(size_points * 5);
+    for (int i = 0; i < size_points; i++)
     {
         PointI point = point_list_[i];
         PointSet::PointType type = check(point);
@@ -131,13 +184,65 @@ PointSet::PointSet(const std::vector<PointI>& polygon)
         }
     }
 
-    matrix_ = SparseMatrix<float>(size3, size3);
+    matrix_ = SparseMatrix<float>(size_points, size_points);
     matrix_.setFromTriplets(tripletList.begin(), tripletList.end());
-    split_.compute(matrix_);
+    solver_.compute(matrix_);
+    status_ = true;
 }
 
 PointSet::~PointSet()
 {
+}
+
+void PointSet::et_insert(int y, ETElement* obj)
+{
+    if (et_[y] == nullptr)
+    {
+        et_[y] = obj;
+    }
+    else if (obj->x < et_[y]->x ||
+                (obj->x == et_[y]->x && obj->dx < et_[y]->dx))
+    {
+        obj->nxt = et_[y];
+        et_[y] = obj;
+    }
+    else
+    {
+        ETElement* itr = et_[y];
+        for (; itr->nxt != nullptr; itr = itr->nxt)
+        {
+            if (obj->x < itr->nxt->x ||
+                (obj->x == itr->nxt->x && obj->dx < itr->nxt->dx))
+                break;
+        }
+        obj->nxt = itr->nxt;
+        itr->nxt = obj;
+    }
+}
+
+void PointSet::ael_insert(ETElement* obj)
+{
+    if (ael_head_ == nullptr)
+    {
+        ael_head_ = obj;
+    }
+    else if (
+        obj->x < ael_head_->x || (obj->x == ael_head_->x && obj->dx < ael_head_->dx))
+    {
+        obj->nxt = ael_head_;
+        ael_head_ = obj;
+    }
+    else
+    {
+        ETElement* itr = ael_head_;
+        for (; itr->nxt != nullptr; itr = itr->nxt)
+        {
+            if (obj->x < itr->nxt->x || (obj->x == itr->nxt->x && obj->dx < itr->nxt->dx))
+                break;
+        }
+        obj->nxt = itr->nxt;
+        itr->nxt = obj;
+    }
 }
 
 int PointSet::point_to_1d_(PointI point)
@@ -186,6 +291,6 @@ PointSet::PointType PointSet::check(PointI point)
 
 VectorXf PointSet::solve(VectorXf input)
 {
-    return split_.solve(input);
+    return solver_.solve(input);
 }
 }  // namespace USTC_CG
