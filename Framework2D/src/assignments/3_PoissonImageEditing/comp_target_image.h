@@ -8,12 +8,12 @@ namespace USTC_CG
 class CompTargetImage : public ImageEditor
 {
    public:
-    // HW3_TODO: Add more types of cloning
     enum CloneType
     {
         kDefault = 0,
         kPaste = 1,
-        kSeamless = 2
+        kSeamless = 2,
+        kMixedGradients = 3
     };
 
     explicit CompTargetImage(
@@ -28,9 +28,14 @@ class CompTargetImage : public ImageEditor
     void set_realtime(bool flag);
     void restore();
 
-    // HW3_TODO: Add more types of cloning
-    void set_paste();
-    void set_seamless();
+    CloneType get_clone_type()
+    {
+        return clone_type_;
+    }
+    void set_clone_type(CloneType type)
+    {
+        clone_type_ = type;
+    }
     // The clone function
     void clone();
 
@@ -43,7 +48,12 @@ class CompTargetImage : public ImageEditor
 
     ImVec2 mouse_position_;
     bool edit_status_ = false;
-    bool flag_realtime_updating = false;
+    bool flag_realtime_updating = true;
+
+    const int DIRMAPX[5] = { 0, 1, -1, 0, 0 };
+    const int DIRMAPY[5] = { 0, 0, 0, 1, -1 };
+    std::vector<float> col_src(int x, int y, int dir);
+    std::vector<float> col_tar(int x, int y, int dir);
 };
 
 }  // namespace USTC_CG

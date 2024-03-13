@@ -30,6 +30,10 @@ class Polygon : public Shape
     void update(float x, float y) override;
     bool addPoint(float x, float y);
     void finishDrawing();
+    std::vector<std::pair<float, float>>& get_pointlist()
+    {
+        return pointlist;
+    }
     int size();
 
    private:

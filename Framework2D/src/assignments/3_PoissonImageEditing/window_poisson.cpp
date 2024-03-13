@@ -9,6 +9,15 @@ namespace USTC_CG
 WindowPoisson::WindowPoisson(const std::string& window_name)
     : Window(window_name)
 {
+    p_target_ = std::make_shared<CompTargetImage>(
+        "NewBackGround",
+        "C:\\Users\\Admin\\Documents\\GitHub\\USTC_CG_24\\Homeworks\\3_poisson_"
+        "image_editing\\data\\NewBackGround.jpg");
+    p_source_ = std::make_shared<CompSourceImage>(
+        "NewBackGround",
+        "C:\\Users\\Admin\\Documents\\GitHub\\USTC_CG_24\\Homeworks\\3_poisson_"
+        "image_editing\\data\\BearInWater.jpg");
+    p_target_->set_source(p_source_);
 }
 
 WindowPoisson::~WindowPoisson()
@@ -66,14 +75,15 @@ void WindowPoisson::draw_toolbar()
 
         ImGui::Separator();
 
-        static bool selectable = false;
+        static bool selectable = true;
         ImGui::Checkbox("Select", &selectable);
         add_tooltips(
             "On: Enable region selection in the source image. Drag left mouse "
-            "to select rectangle (default) in the source.");
+            "to select in the source.");
         if (p_source_)
             p_source_->enable_selecting(selectable);
-        static bool realtime = false;
+
+        static bool realtime = true;
         ImGui::Checkbox("Realtime", &realtime);
         add_tooltips(
             "On: Enable realtime cloning in the target image, which means that "
@@ -84,15 +94,67 @@ void WindowPoisson::draw_toolbar()
 
         ImGui::Separator();
 
-        if (ImGui::MenuItem("Paste") && p_target_ && p_source_)
+        auto current_shape = p_source_->get_region_type();
+
+        if (current_shape == CompSourceImage::kRect)ImGui::BeginDisabled();
+        if (ImGui::Button("Rect"))
         {
-            p_target_->set_paste();
+            p_source_->set_region_type(CompSourceImage::kRect);
         }
+        if (current_shape == CompSourceImage::kRect) ImGui::EndDisabled();
+        ImGui::SameLine();
+
+        if (current_shape == CompSourceImage::kPolygon)ImGui::BeginDisabled();
+        if (ImGui::Button("Polygon"))
+        {
+            p_source_->set_region_type(CompSourceImage::kPolygon);
+        }
+        if (current_shape == CompSourceImage::kPolygon) ImGui::EndDisabled();
+        ImGui::SameLine();
+
+        if (current_shape == CompSourceImage::kFreehand) ImGui::BeginDisabled();
+        if (ImGui::Button("Freehand"))
+        {
+            p_source_->set_region_type(CompSourceImage::kFreehand);
+        }
+        if (current_shape == CompSourceImage::kFreehand) ImGui::EndDisabled();
+
+        ImGui::Separator();
+
+        auto clone_type = p_target_->get_clone_type();
+
+        if (clone_type == CompTargetImage::kPaste)
+            ImGui::BeginDisabled();
+        if (ImGui::Button("Paste"))
+        {
+            p_target_->set_clone_type(CompTargetImage::kPaste);
+        }
+        if (clone_type == CompTargetImage::kPaste)
+            ImGui::EndDisabled();
+        ImGui::SameLine();
+
+        if (clone_type == CompTargetImage::kSeamless)
+            ImGui::BeginDisabled();
+        if (ImGui::Button("Seamless"))
+        {
+            p_target_->set_clone_type(CompTargetImage::kSeamless);
+        }
+        if (clone_type == CompTargetImage::kSeamless)
+            ImGui::EndDisabled();
+        ImGui::SameLine();
+
+        if (clone_type == CompTargetImage::kMixedGradients)
+            ImGui::BeginDisabled();
+        if (ImGui::Button("MixedGradients"))
+        {
+            p_target_->set_clone_type(CompTargetImage::kMixedGradients);
+        }
+        if (clone_type == CompTargetImage::kMixedGradients)
+            ImGui::EndDisabled();
+
         add_tooltips(
             "Press this button and then click in the target image, to "
             "clone the selected region to the target image.");
-        // HW3_TODO: You may add more items in the menu for the different types
-        // of Poisson editing.
 
         ImGui::EndMainMenuBar();
     }

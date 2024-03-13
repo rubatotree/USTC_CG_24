@@ -1,7 +1,8 @@
 #include "comp_target_image.h"
-
+#include <Eigen/Dense>
 #include <cmath>
-
+#include <ctime>
+#include <iostream>
 namespace USTC_CG
 {
 using uchar = unsigned char;
@@ -66,92 +67,176 @@ void CompTargetImage::restore()
     *data_ = *back_up_;
     update();
 }
-
-void CompTargetImage::set_paste()
-{
-    clone_type_ = kPaste;
-}
-
-void CompTargetImage::set_seamless()
-{
-    clone_type_ = kSeamless;
-}
-
 void CompTargetImage::clone()
 {
-    // The implementation of different types of cloning
-    // HW3_TODO: In this function, you should at least implement the "seamless"
-    // cloning labeled by `clone_type_ ==kSeamless`.
-    //
-    // The realtime updating (update when the mouse is moving) is only available
-    // when the checkboard is selected. It is required to improve the efficiency
-    // of your seamless cloning to achieve realtime editing. (Use decomposition
-    // of sparse matrix before solve the linear system)
+    if (clone_type_ == USTC_CG::CompTargetImage::kDefault)
+        return;
+
     std::shared_ptr<Image> mask = source_image_->get_region();
+    PointSet* point_set = source_image_->get_selected_point_set();
+    restore();
 
-    switch (clone_type_)
+    PointI offset_tar = PointI(
+        static_cast<int>(mouse_position_.x) -
+            static_cast<int>(source_image_->get_position().x),
+        static_cast<int>(mouse_position_.y) -
+            static_cast<int>(source_image_->get_position().y));
+    
+    int size = point_set->size();
+    Eigen::VectorXf F[3] = { Eigen::VectorXf(size),
+                             Eigen::VectorXf(size),
+                             Eigen::VectorXf(size) },
+                    G[3] = { Eigen::VectorXf(size),
+                             Eigen::VectorXf(size),
+                             Eigen::VectorXf(size) };
+
+    for (int i = 0; i < size; i++)
     {
-        case USTC_CG::CompTargetImage::kDefault: break;
-        case USTC_CG::CompTargetImage::kPaste:
-        {
-            restore();
+        PointI psrc = point_set->get_point_at(i);
+        PointI ptar = psrc + offset_tar;
+        PointSet::PointType type = point_set->check(psrc);
 
-            for (int i = 0; i < mask->width(); ++i)
-            {
-                for (int j = 0; j < mask->height(); ++j)
+        switch (clone_type_)
+        {
+            case USTC_CG::CompTargetImage::kPaste:
+                if (ptar.x < 0 || ptar.x >= image_width_ || ptar.y < 0 ||
+                    ptar.y >= image_height_)
+                    continue;
+                data_->set_pixel(
+                    ptar.x,
+                    ptar.y,
+                    source_image_->get_data()->get_pixel(psrc.x, psrc.y));
+                break;
+
+            case USTC_CG::CompTargetImage::kSeamless:
+                if (type == PointSet::kBoundary)
                 {
-                    int tar_x =
-                        static_cast<int>(mouse_position_.x) + i -
-                        static_cast<int>(source_image_->get_position().x);
-                    int tar_y =
-                        static_cast<int>(mouse_position_.y) + j -
-                        static_cast<int>(source_image_->get_position().y);
-                    if (0 <= tar_x && tar_x < image_width_ && 0 <= tar_y &&
-                        tar_y < image_height_ && mask->get_pixel(i, j)[0] > 0)
+                    // Dirichlet 边界条件
+                    auto col = col_tar(ptar.x, ptar.y, 0);
+                    for (int c = 0; c < 3; c++)
+                        F[c](i) = col[c];
+                }
+                else if (type == PointSet::kIn)
+                {
+                    // Laplacian
+                    auto col = col_src(psrc.x, psrc.y, 0);
+
+                    for (int c = 0; c < 3; c++)
+                        col[c] *= -4;
+                    for (int d = 1; d <= 4; d++)
                     {
-                        data_->set_pixel(
-                            tar_x,
-                            tar_y,
-                            source_image_->get_data()->get_pixel(i, j));
+                        auto col_d = col_src(psrc.x, psrc.y, d);
+                        for (int c = 0; c < 3; c++) col[c] += col_d[c];
+                    }
+
+                    for (int c = 0; c < 3; c++)
+                        F[c](i) = col[c];
+                }
+                break;
+
+            case USTC_CG::CompTargetImage::kMixedGradients:
+                if (type == PointSet::kBoundary)
+                {
+                    auto col = col_tar(ptar.x, ptar.y, 0);
+                    for (int c = 0; c < 3; c++)
+                        F[c](i) = col[c];
+                }
+                else if (type == PointSet::kIn)
+                {
+                    std::vector<float> ctar[5], csrc[5];
+                    for (int d = 0; d <= 4; d++)
+                    {
+                        ctar[d] = col_tar(ptar.x, ptar.y, d);
+                        csrc[d] = col_src(psrc.x, psrc.y, d);
+                    }
+                    for (int c = 0; c < 3; c++)
+                    {
+                        float laplacian = 0;
+                        for (int d = 1; d <= 4; d++)
+                        {
+                            float gradf = ctar[d][c] - ctar[0][c];
+                            float gradg = csrc[d][c] - csrc[0][c];
+
+                            // 始终取最大梯度
+                            if (abs(gradf) > abs(gradg))
+                                laplacian += gradf;
+                            else
+                                laplacian += gradg;
+                        }
+                        F[c](i) = laplacian;
                     }
                 }
-            }
-            break;
+                break;
         }
-        case USTC_CG::CompTargetImage::kSeamless:
+    }
+    if (clone_type_ == CompTargetImage::kSeamless ||
+        clone_type_ == CompTargetImage::kMixedGradients)
+    {
+        for (int c = 0; c < 3; c++)
+            G[c] = point_set->solve(F[c]);
+
+        for (int i = 0; i < size; i++)
         {
-            // You should delete this block and implement your own seamless
-            // cloning. For each pixel in the selected region, calculate the
-            // final RGB color by solving Poisson Equations.
-            restore();
+            PointI ptar = point_set->get_point_at(i) + offset_tar;
+            if (ptar.x < 0 || ptar.x >= image_width_ || ptar.y < 0 ||
+                ptar.y >= image_height_)
+                continue;
 
-            for (int i = 0; i < mask->width(); ++i)
-            {
-                for (int j = 0; j < mask->height(); ++j)
-                {
-                    int tar_x =
-                        static_cast<int>(mouse_position_.x) + i -
-                        static_cast<int>(source_image_->get_position().x);
-                    int tar_y =
-                        static_cast<int>(mouse_position_.y) + j -
-                        static_cast<int>(source_image_->get_position().y);
-                    if (0 <= tar_x && tar_x < image_width_ && 0 <= tar_y &&
-                        tar_y < image_height_ && mask->get_pixel(i, j)[0] > 0)
-                    {
-                        data_->set_pixel(
-                            tar_x,
-                            tar_y,
-                            source_image_->get_data()->get_pixel(i, j));
-                    }
-                }
-            }
-
-            break;
+            // 防止颜色值超界
+            uchar r = std::clamp(G[0](i), (float)0, (float)255);
+            uchar g = std::clamp(G[1](i), (float)0, (float)255);
+            uchar b = std::clamp(G[2](i), (float)0, (float)255);
+            data_->set_pixel(ptar.x, ptar.y, {r, g, b});
         }
-        default: break;
     }
 
     update();
+}
+
+
+// 这两个稍加封装的函数同时处理了三个问题：
+// 1. 将颜色值转为 float， 便于计算；
+// 2. 判断超界，并设置超界范围的颜色；
+// 3. 提供获取邻域颜色的功能，简化代码。dir 取 1 到 4 分别对应右、左、上、下。
+
+std::vector<float> CompTargetImage::col_src(int x, int y, int dir = 0)
+{
+    x += DIRMAPX[dir];
+    y += DIRMAPY[dir];
+    if (x < 0)
+        x = 0;
+    else if (x >= source_image_->get_data()->width())
+        x = source_image_->get_data()->width() - 1;
+    if (y < 0)
+        y = 0;
+    else if (y >= source_image_->get_data()->height())
+        y = source_image_->get_data()->height() - 1;
+    std::vector<float> ret;
+    auto pixel = source_image_->get_data()->get_pixel(x, y);
+    ret.resize(3, 0);
+    for (int c = 0; c < 3; c++)
+        ret[c] = (float)pixel[c];
+    return ret;
+}
+
+std::vector<float> CompTargetImage::col_tar(int x, int y, int dir = 0)
+{
+    x += DIRMAPX[dir];
+    y += DIRMAPY[dir];
+    if (x < 0)
+        x = 0;
+    else if (x >= data_->width())
+        x = data_->width() - 1;
+    if (y < 0)
+        y = 0;
+    else if (y >= data_->height())
+        y = data_->height() - 1;
+    std::vector<float> ret;
+    auto pixel = data_->get_pixel(x, y);
+    ret.resize(3, 0);
+    for (int c = 0; c < 3; c++)
+        ret[c] = (float)pixel[c];
+    return ret;
 }
 
 }  // namespace USTC_CG
