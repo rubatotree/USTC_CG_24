@@ -49,11 +49,6 @@ class CompTargetImage : public ImageEditor
     ImVec2 mouse_position_;
     bool edit_status_ = false;
     bool flag_realtime_updating = true;
-
-    const int DIRMAPX[5] = { 0, 1, -1, 0, 0 };
-    const int DIRMAPY[5] = { 0, 0, 0, 1, -1 };
-    std::vector<float> col_src(int x, int y, int dir);
-    std::vector<float> col_tar(int x, int y, int dir);
 };
 
 }  // namespace USTC_CG

@@ -6,8 +6,9 @@
 #include <ctime>
 #include "point_set.h"
 
-typedef PointI PointI;
 
+namespace USTC_CG
+{
 PointSet::PointSet()
 {
     width_ = 0;
@@ -119,10 +120,14 @@ PointSet::PointSet(const std::vector<PointI>& polygon)
         else if (type == kIn)
         {
             tripletList.push_back(T(i, i, -4));
-            tripletList.push_back(T(i, map_[point_to_1d_(point + PointI(1 , 0))], 1));
-            tripletList.push_back(T(i, map_[point_to_1d_(point + PointI(-1, 0))], 1));
-            tripletList.push_back(T(i, map_[point_to_1d_(point + PointI(0, 1 ))], 1));
-            tripletList.push_back(T(i, map_[point_to_1d_(point + PointI(0, -1))], 1));
+            tripletList.push_back(
+                T(i, map_[point_to_1d_(point + PointI(1, 0))], 1));
+            tripletList.push_back(
+                T(i, map_[point_to_1d_(point + PointI(-1, 0))], 1));
+            tripletList.push_back(
+                T(i, map_[point_to_1d_(point + PointI(0, 1))], 1));
+            tripletList.push_back(
+                T(i, map_[point_to_1d_(point + PointI(0, -1))], 1));
         }
     }
 
@@ -173,10 +178,8 @@ PointSet::PointType PointSet::check(PointI point)
 {
     if (!in_set(point))
         return kOut;
-    if (   in_set(point + PointI(1 , 0)) 
-        && in_set(point + PointI(-1, 0)) 
-        && in_set(point + PointI(0, 1 )) 
-        && in_set(point + PointI(0, -1)))
+    if (in_set(point + PointI(1, 0)) && in_set(point + PointI(-1, 0)) &&
+        in_set(point + PointI(0, 1)) && in_set(point + PointI(0, -1)))
         return kIn;
     return kBoundary;
 }
@@ -185,6 +188,4 @@ VectorXf PointSet::solve(VectorXf input)
 {
     return split_.solve(input);
 }
-
-#undef point.x
-#undef point.y
+}  // namespace USTC_CG

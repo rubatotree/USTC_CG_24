@@ -1,8 +1,12 @@
+#pragma once
+
 #include <Eigen/Sparse>
 #include <vector>
 #include <tuple>
 using namespace Eigen;
 
+namespace USTC_CG
+{
 // 整点
 struct PointI
 {
@@ -32,7 +36,6 @@ struct PointI
     }
 };
 
-
 // 点集类
 class PointSet
 {
@@ -45,7 +48,9 @@ class PointSet
     };
     PointSet();
     PointSet(int width, int height);
-    PointSet(const std::vector<PointI>& polygon); // 该构造函数接受一个多边形，并光栅化确定点集内元素。
+    PointSet(
+        const std::vector<PointI>&
+            polygon);  // 该构造函数接受一个多边形，并光栅化确定点集内元素。
     ~PointSet();
     void add_point(PointI point);
     PointType check(PointI point);
@@ -77,3 +82,4 @@ class PointSet
     int point_to_1d_(PointI point);
     bool in_set(PointI point);
 };
+}  // namespace USTC_CG

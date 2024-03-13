@@ -1,7 +1,7 @@
 #pragma once
 
 #include "view/comp_image.h"
-#include "point_set.h"
+#include "image_clone_algorithms/point_set.h"
 #include "view/shapes/shape.h"
 
 namespace USTC_CG
@@ -21,7 +21,7 @@ class CompSourceImage : public ImageEditor
     explicit CompSourceImage(
         const std::string& label,
         const std::string& filename);
-    virtual ~CompSourceImage() noexcept = default;
+    virtual ~CompSourceImage();
 
     void draw() override;
 

@@ -22,6 +22,11 @@ CompSourceImage::CompSourceImage(
             std::make_shared<Image>(data_->width(), data_->height(), 1);
 }
 
+CompSourceImage::~CompSourceImage()
+{
+    delete selected_point_set_;
+}
+
 void CompSourceImage::draw()
 {
     // Draw the image
