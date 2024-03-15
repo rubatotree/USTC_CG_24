@@ -108,6 +108,8 @@ void CompTargetImage::clone()
 
     cloner->clone();
 
+    delete cloner;
+
     update();
 }
 }  // namespace USTC_CG

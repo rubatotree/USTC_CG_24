@@ -9,15 +9,15 @@ namespace USTC_CG
 WindowPoisson::WindowPoisson(const std::string& window_name)
     : Window(window_name)
 {
-    p_target_ = std::make_shared<CompTargetImage>(
-        "NewBackGround",
-        "C:\\Users\\Admin\\Documents\\GitHub\\USTC_CG_24\\Homeworks\\3_poisson_"
-        "image_editing\\data\\NewBackGround.jpg");
-    p_source_ = std::make_shared<CompSourceImage>(
-        "NewBackGround",
-        "C:\\Users\\Admin\\Documents\\GitHub\\USTC_CG_24\\Homeworks\\3_poisson_"
-        "image_editing\\data\\BearInWater.jpg");
-    p_target_->set_source(p_source_);
+    //p_target_ = std::make_shared<CompTargetImage>(
+    //    "NewBackGround",
+    //    "C:\\Users\\Admin\\Documents\\GitHub\\USTC_CG_24\\Homeworks\\3_poisson_"
+    //    "image_editing\\data\\NewBackGround.jpg");
+    //p_source_ = std::make_shared<CompSourceImage>(
+    //    "NewBackGround",
+    //    "C:\\Users\\Admin\\Documents\\GitHub\\USTC_CG_24\\Homeworks\\3_poisson_"
+    //    "image_editing\\data\\BearInWater.jpg");
+    //p_target_->set_source(p_source_);
 }
 
 WindowPoisson::~WindowPoisson()
@@ -94,12 +94,16 @@ void WindowPoisson::draw_toolbar()
 
         ImGui::Separator();
 
-        auto current_shape = p_source_->get_region_type();
+        auto current_shape = CompSourceImage::kRect;
+
+        if (p_source_)
+            current_shape = p_source_->get_region_type();
 
         if (current_shape == CompSourceImage::kRect)ImGui::BeginDisabled();
         if (ImGui::Button("Rect"))
         {
-            p_source_->set_region_type(CompSourceImage::kRect);
+            if (p_source_)
+                p_source_->set_region_type(CompSourceImage::kRect);
         }
         if (current_shape == CompSourceImage::kRect) ImGui::EndDisabled();
         ImGui::SameLine();
@@ -107,7 +111,8 @@ void WindowPoisson::draw_toolbar()
         if (current_shape == CompSourceImage::kPolygon)ImGui::BeginDisabled();
         if (ImGui::Button("Polygon"))
         {
-            p_source_->set_region_type(CompSourceImage::kPolygon);
+            if (p_source_)
+                p_source_->set_region_type(CompSourceImage::kPolygon);
         }
         if (current_shape == CompSourceImage::kPolygon) ImGui::EndDisabled();
         ImGui::SameLine();
@@ -115,19 +120,22 @@ void WindowPoisson::draw_toolbar()
         if (current_shape == CompSourceImage::kFreehand) ImGui::BeginDisabled();
         if (ImGui::Button("Freehand"))
         {
-            p_source_->set_region_type(CompSourceImage::kFreehand);
+            if (p_source_)
+                p_source_->set_region_type(CompSourceImage::kFreehand);
         }
         if (current_shape == CompSourceImage::kFreehand) ImGui::EndDisabled();
 
         ImGui::Separator();
 
-        auto clone_type = p_target_->get_clone_type();
+        auto clone_type = CompTargetImage::kDefault;
+        if(p_target_) p_target_->get_clone_type();
 
         if (clone_type == CompTargetImage::kPaste)
             ImGui::BeginDisabled();
         if (ImGui::Button("Paste"))
         {
-            p_target_->set_clone_type(CompTargetImage::kPaste);
+            if (p_target_)
+                p_target_->set_clone_type(CompTargetImage::kPaste);
         }
         if (clone_type == CompTargetImage::kPaste)
             ImGui::EndDisabled();
@@ -137,7 +145,8 @@ void WindowPoisson::draw_toolbar()
             ImGui::BeginDisabled();
         if (ImGui::Button("Seamless"))
         {
-            p_target_->set_clone_type(CompTargetImage::kSeamless);
+            if (p_target_)
+                p_target_->set_clone_type(CompTargetImage::kSeamless);
         }
         if (clone_type == CompTargetImage::kSeamless)
             ImGui::EndDisabled();
@@ -147,7 +156,8 @@ void WindowPoisson::draw_toolbar()
             ImGui::BeginDisabled();
         if (ImGui::Button("MixedGradients"))
         {
-            p_target_->set_clone_type(CompTargetImage::kMixedGradients);
+            if (p_target_)
+                p_target_->set_clone_type(CompTargetImage::kMixedGradients);
         }
         if (clone_type == CompTargetImage::kMixedGradients)
             ImGui::EndDisabled();

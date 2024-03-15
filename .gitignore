@@ -7,3 +7,4 @@ imgui.ini
 third_party/
 *.png
 _deps/
+*.jpg
