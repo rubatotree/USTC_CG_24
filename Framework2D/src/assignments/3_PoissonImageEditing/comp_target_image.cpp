@@ -72,27 +72,21 @@ void CompTargetImage::restore()
     *data_ = *back_up_;
     update();
 }
+
 void CompTargetImage::clone()
 {
+    PointI offset_tar = PointI(
+        static_cast<int>(mouse_position_.x) -
+            static_cast<int>(source_image_->get_position().x),
+        static_cast<int>(mouse_position_.y) -
+            static_cast<int>(source_image_->get_position().y));
     if (clone_type_ == USTC_CG::CompTargetImage::kDefault)
         return;
 
     PointSet* point_set = source_image_->get_selected_point_set();
     if (point_set == nullptr)
         return;
-}
 
-void CompTargetImage::clone()
-{
-    if (clone_type_ == USTC_CG::CompTargetImage::kDefault)
-        return;
-    PointI offset_tar = PointI(
-        static_cast<int>(mouse_position_.x) -
-            static_cast<int>(source_image_->get_position().x),
-        static_cast<int>(mouse_position_.y) -
-            static_cast<int>(source_image_->get_position().y));
-    
-    PointSet* point_set = source_image_->get_selected_point_set();
     restore();
     ImageCloneAlgorithm* cloner = nullptr;
     
