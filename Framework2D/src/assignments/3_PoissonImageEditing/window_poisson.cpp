@@ -128,7 +128,8 @@ void WindowPoisson::draw_toolbar()
         ImGui::Separator();
 
         auto clone_type = CompTargetImage::kDefault;
-        if(p_target_) p_target_->get_clone_type();
+        if (p_target_)
+            clone_type = p_target_->get_clone_type();
 
         if (clone_type == CompTargetImage::kPaste)
             ImGui::BeginDisabled();
@@ -137,6 +138,9 @@ void WindowPoisson::draw_toolbar()
             if (p_target_)
                 p_target_->set_clone_type(CompTargetImage::kPaste);
         }
+        add_tooltips(
+            "Press this button and then click in the target image, to "
+            "clone the selected region to the target image.");
         if (clone_type == CompTargetImage::kPaste)
             ImGui::EndDisabled();
         ImGui::SameLine();
@@ -162,9 +166,7 @@ void WindowPoisson::draw_toolbar()
         if (clone_type == CompTargetImage::kMixedGradients)
             ImGui::EndDisabled();
 
-        add_tooltips(
-            "Press this button and then click in the target image, to "
-            "clone the selected region to the target image.");
+        
 
         ImGui::EndMainMenuBar();
     }
