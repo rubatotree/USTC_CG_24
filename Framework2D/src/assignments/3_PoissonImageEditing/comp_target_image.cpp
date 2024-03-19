@@ -81,7 +81,17 @@ void CompTargetImage::clone()
     if (point_set == nullptr)
         return;
 
-    restore();
+void CompTargetImage::clone()
+{
+    // The implementation of different types of cloning
+    // HW3_TODO: In this function, you should at least implement the "seamless"
+    // cloning labeled by `clone_type_ ==kSeamless`.
+    //
+    // The realtime updating (update when the mouse is moving) is only available
+    // when the checkboard is selected. It is required to improve the efficiency
+    // of your seamless cloning to achieve realtime editing. (Use decomposition
+    // of sparse matrix before solve the linear system)
+    std::shared_ptr<Image> mask = source_image_->get_region();
 
     PointI offset_tar = PointI(
         static_cast<int>(mouse_position_.x) -
