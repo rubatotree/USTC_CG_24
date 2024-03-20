@@ -4,6 +4,8 @@
 #include "Nodes/node_register.h"
 #include "geom_node_base.h"
 #include "utils/util_openmesh_bind.h"
+#include <vector>
+#include <cmath>
 
 /*
 ** @brief HW4_TutteParameterization
@@ -45,10 +47,10 @@ static void node_map_boundary_to_circle_exec(ExeParams params)
     auto input = params.get_input<GOperandBase>("Input");
 
     // (TO BE UPDATED) Avoid processing the node when there is no input
-    if (!input.get_component<MeshComponent>()) {
-        throw std::runtime_error("Boundary Mapping: Need Geometry Input.");
-    }
-    throw std::runtime_error("Not implemented");
+    // if (!input.get_component<MeshComponent>()) {
+    //     throw std::runtime_error("Boundary Mapping: Need Geometry Input.");
+    // }
+    // throw std::runtime_error("Not implemented");
 
     /* ----------------------------- Preprocess -------------------------------
     ** Create a halfedge structure (using OpenMesh) for the input mesh. The
@@ -58,7 +60,7 @@ static void node_map_boundary_to_circle_exec(ExeParams params)
     */
     auto halfedge_mesh = operand_to_openmesh(&input);
 
-    /* ----------- [HW4_TODO] TASK 2.1: Boundary Mapping (to circle) ------------
+    /* ----------- [HW4] TASK 2.1: Boundary Mapping (to circle) ------------
     ** In this task, you are required to map the boundary of the mesh to a circle
     ** shape while ensuring the internal vertices remain unaffected. This step is
     ** crucial for setting up the mesh for subsequent parameterization tasks.
@@ -80,7 +82,36 @@ static void node_map_boundary_to_circle_exec(ExeParams params)
     ** Note: It would be better to normalize the boundary to a unit circle in [0,1]x[0,1] for
     ** texture mapping.
     */
-
+    if (halfedge_mesh->n_vertices() > 0)
+    {
+        int n_boundary_vertices = 0;
+        std::vector<OpenMesh::SmartVertexHandle> boundary;
+        OpenMesh::SmartHalfedgeHandle cur_boundary;
+        for (auto he : halfedge_mesh->halfedges())
+        {
+            if (he.is_boundary())
+            {
+                n_boundary_vertices++;
+                cur_boundary = he;
+            }
+        }
+        if (n_boundary_vertices >= 1)
+        {
+			for (int i = 0; i < n_boundary_vertices; i++)
+			{
+				boundary.push_back(cur_boundary.from());
+				cur_boundary = cur_boundary.next();
+			}
+            for (int i = 0; i < boundary.size(); i++)
+            {
+                float t = (float)i / n_boundary_vertices;
+                float x = cos(t * 2 * M_PI) * 0.5 + 0.5;
+                float y = sin(t * 2 * M_PI) * 0.5 + 0.5;
+                halfedge_mesh->set_point(boundary[i], { x, y, 0 });
+            }
+        }
+    }
+    
     /* ----------------------------- Postprocess ------------------------------
     ** Convert the result mesh from the halfedge structure back to GOperandBase format as the node's
     ** output.
@@ -115,17 +146,17 @@ static void node_map_boundary_to_square_exec(ExeParams params)
     auto input = params.get_input<GOperandBase>("Input");
 
     // (TO BE UPDATED) Avoid processing the node when there is no input
-    if (!input.get_component<MeshComponent>()) {
-        throw std::runtime_error("Input does not contain a mesh");
-    }
-    throw std::runtime_error("Not implemented");
+    // if (!input.get_component<MeshComponent>()) {
+    //     throw std::runtime_error("Input does not contain a mesh");
+    // }
+    // throw std::runtime_error("Not implemented");
 
     /* ----------------------------- Preprocess -------------------------------
     ** Create a halfedge structure (using OpenMesh) for the input mesh.
     */
     auto halfedge_mesh = operand_to_openmesh(&input);
 
-    /* ----------- [HW4_TODO] TASK 2.2: Boundary Mapping (to square) ------------
+    /* ----------- [HW4] TASK 2.2: Boundary Mapping (to square) ------------
     ** In this task, you are required to map the boundary of the mesh to a circle
     ** shape while ensuring the internal vertices remain unaffected.
     **
@@ -138,6 +169,42 @@ static void node_map_boundary_to_square_exec(ExeParams params)
     ** Note: It would be better to normalize the boundary to a unit circle in [0,1]x[0,1] for
     ** texture mapping.
     */
+    if (halfedge_mesh->n_vertices() > 0) {
+        int n_boundary_vertices = 0;
+        std::vector<OpenMesh::SmartVertexHandle> boundary;
+        OpenMesh::SmartHalfedgeHandle cur_boundary;
+        for (auto he : halfedge_mesh->halfedges())
+        {
+            if (he.is_boundary())
+            {
+                n_boundary_vertices++;
+                cur_boundary = he;
+            }
+        }
+        if (n_boundary_vertices >= 1)
+        {
+			for (int i = 0; i < n_boundary_vertices; i++)
+			{
+				boundary.push_back(cur_boundary.from());
+				cur_boundary = cur_boundary.next();
+            }
+            int n_vert_edge = n_boundary_vertices / 4;
+            for (int i = 0; i < boundary.size(); i++) {
+                int edge = i / n_vert_edge ;
+                int edge_ind = i % n_vert_edge;
+                float t = (float)edge_ind / n_vert_edge;
+                OpenMesh::DefaultTraits::Point pos = { 0, 0, 0 };
+                switch (edge)
+                {
+                    case 0: pos = {t, 0, 0}; break;
+                    case 1: pos = {1, t, 0}; break;
+                    case 2: pos = {1 - t, 1, 0}; break;
+                    case 3: pos = {0, 1 - t, 0}; break;
+                }
+                halfedge_mesh->set_point(boundary[i], pos);
+            }
+        }
+    }
 
     /* ----------------------------- Postprocess ------------------------------
     ** Convert the result mesh from the halfedge structure back to GOperandBase format as the node's

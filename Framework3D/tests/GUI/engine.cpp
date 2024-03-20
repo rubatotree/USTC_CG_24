@@ -7,6 +7,8 @@
 #include "GUI/usdview_engine.h"
 #include "GUI/window/window.h"
 
+#include <imgui.h>
+
 class NodeWindow final : public USTC_CG::Window {
    public:
     explicit NodeWindow(const std::string& window_name) : Window(window_name)
