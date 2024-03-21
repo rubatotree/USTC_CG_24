@@ -30,7 +30,7 @@ namespace USTC_CG::node_min_surf_uniform {
 static void node_min_surf_uniform_declare(NodeDeclarationBuilder& b)
 {
     // Input-1: Original 3D mesh with boundary
-    b.add_input<decl::Geometry>("Input");
+    b.add_input<decl::Geometry>("Mesh with Boundary Fixed");
 
     /*
     ** NOTE: You can add more inputs or outputs if necessary. For example, in some cases,
@@ -53,7 +53,7 @@ static void node_min_surf_uniform_declare(NodeDeclarationBuilder& b)
 static void node_min_surf_uniform_exec(ExeParams params)
 {
     // Get the input from params
-    auto input = params.get_input<GOperandBase>("Input");
+    auto input = params.get_input<GOperandBase>("Mesh with Boundary Fixed");
 
     // (TO BE UPDATED) Avoid processing the node when there is no input
     // if (!input.get_component<MeshComponent>()) {

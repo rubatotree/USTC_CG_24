@@ -188,11 +188,15 @@ static void node_map_boundary_to_square_exec(ExeParams params)
 				boundary.push_back(cur_boundary.from());
 				cur_boundary = cur_boundary.next();
             }
-            int n_vert_edge = n_boundary_vertices / 4;
-            for (int i = 0; i < boundary.size(); i++) {
-                int edge = i / n_vert_edge ;
-                int edge_ind = i % n_vert_edge;
-                float t = (float)edge_ind / n_vert_edge;
+            double step = 4.0 / n_boundary_vertices;
+            for (int i = 0; i < n_boundary_vertices; i++) {
+                double t1 = i * step;
+                int edge = (int)floor(t1);
+                double t = t1 - floor(t1);
+                if (t <= step / 2)
+                    t = 0;
+                if (1 - t < step / 2)
+                    t = 1;
                 OpenMesh::DefaultTraits::Point pos = { 0, 0, 0 };
                 switch (edge)
                 {

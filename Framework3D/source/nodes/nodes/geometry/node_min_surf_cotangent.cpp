@@ -13,7 +13,7 @@
 namespace USTC_CG::node_min_surf_cotangent {
 static void node_min_surf_cotangent_declare(NodeDeclarationBuilder& b)
 {
-    b.add_input<decl::Geometry>("Input");
+    b.add_input<decl::Geometry>("Mesh");
     b.add_input<decl::Geometry>("Mesh with Boundary Fixed");
 
     b.add_output<decl::Geometry>("Output");
@@ -32,7 +32,7 @@ static float cotangent(OpenMesh::DefaultTraits::Point vert, OpenMesh::DefaultTra
 
 static void node_min_surf_cotangent_exec(ExeParams params)
 {
-    auto input = params.get_input<GOperandBase>("Input");
+    auto input = params.get_input<GOperandBase>("Mesh");
     auto input_boundary = params.get_input<GOperandBase>("Mesh with Boundary Fixed");
     auto halfedge_mesh = operand_to_openmesh(&input);
     auto halfedge_mesh_fixed = operand_to_openmesh(&input_boundary);
