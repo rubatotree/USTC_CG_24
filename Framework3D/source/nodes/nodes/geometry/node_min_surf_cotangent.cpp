@@ -22,12 +22,7 @@ static void node_min_surf_cotangent_declare(NodeDeclarationBuilder& b)
 static float cotangent(OpenMesh::DefaultTraits::Point vert, OpenMesh::DefaultTraits::Point p1, OpenMesh::DefaultTraits::Point p2)
 {
     auto v1 = (p1 - vert).normalized(), v2 = (p2 - vert).normalized();
-    float cosine = v1.dot(v2);
-    float sine = sqrt(1 - cosine * cosine);
-    if (sine == 0)
-        return 0;
-    else
-        return cosine / sine;
+    return v1.dot(v2) / v1.cross(v2).norm();
 }
 
 static void node_min_surf_cotangent_exec(ExeParams params)

@@ -4,95 +4,293 @@
 #include "Nodes/node_register.h"
 #include "geom_node_base.h"
 #include "utils/util_openmesh_bind.h"
-
-/*
-** @brief HW5_ARAP_Parameterization
-**
-** This file presents the basic framework of a "node", which processes inputs
-** received from the left and outputs specific variables for downstream nodes to
-** use.
-**
-** - In the first function, node_declare, you can set up the node's input and
-** output variables.
-**
-** - The second function, node_exec is the execution part of the node, where we
-** need to implement the node's functionality.
-**
-** - The third function generates the node's registration information, which
-** eventually allows placing this node in the GUI interface.
-**
-** Your task is to fill in the required logic at the specified locations
-** within this template, especially in node_exec.
-*/
+#include <Eigen/Sparse>
+#include <Eigen/Dense>
+#include <iostream>
+#include <set>
 
 namespace USTC_CG::node_arap {
+
+class ParameterizeARAP
+{
+   private:
+    const std::shared_ptr<USTC_CG::PolyMesh>& mesh;
+    pxr::VtArray<pxr::GfVec2f> texcoords;
+    int iterate_number;
+    int fixed_point1, fixed_point2;
+    bool compress = true;
+   
+   public:
+    ParameterizeARAP(
+        std::shared_ptr<USTC_CG::PolyMesh>& mesh,
+        pxr::VtArray<pxr::GfVec2f> texcoords,
+        int iterate_number, bool compress = false)
+        : mesh(mesh),
+          texcoords(texcoords),
+          iterate_number(iterate_number),
+          compress(compress)
+    {
+	}
+
+   private:
+    struct TriangleARAP
+    {
+        Eigen::Matrix2f Lt = Eigen::Matrix2f::Identity();
+        int idx_mesh[3] = { -1, -1, -1 };
+        Eigen::Vector2f coord[3] = { { 0, 0 }, { 0, 0 }, { 0, 0 } };
+        Eigen::Vector2f texcoord[3] = { { 0, 0 }, { 0, 0 }, { 0, 0 } };
+        TriangleARAP()
+        {
+        }
+        TriangleARAP(
+            OpenMesh::SmartFaceHandle& face,
+            const std::shared_ptr<USTC_CG::PolyMesh>& mesh,
+            const pxr::VtArray<pxr::GfVec2f>& texcoords)
+        {
+            double len[3];
+		    int i = 0;
+            for (auto vh : mesh->fv_ccw_range(face)) {
+			    idx_mesh[i] = vh.idx();
+			    i++;
+		    }
+            for (int i = 0; i < 3; i++) {
+			    int j = (i + 1) % 3;
+			    int k = (i + 2) % 3;
+			    auto p1 = mesh->point(mesh->vertex_handle(idx_mesh[j]));
+			    auto p2 = mesh->point(mesh->vertex_handle(idx_mesh[k]));
+			    len[i] = (p1 - p2).length();
+		    }
+            double cos0 = (len[1] * len[1] + len[2] * len[2] - len[0] * len[0]) / (2 * len[1] * len[2]);
+            coord[0] = Eigen::Vector2f(0, 0);
+		    coord[1] = Eigen::Vector2f(len[2], 0);
+            coord[2] = Eigen::Vector2f(len[1] * cos0, len[1] * sqrt(1 - cos0 * cos0));
+            update_texcoords(texcoords);
+        }
+        int index(int mesh_idx)
+        {
+            for (int i = 0; i < 3; i++) {
+                if (idx_mesh[i] == mesh_idx)
+                    return i;
+            }
+            return -1;
+        }
+        double cot(int local_idx)
+        {
+            Eigen::Vector2f p1 = coord[(local_idx + 1) % 3] - coord[local_idx];
+            Eigen::Vector2f p2 = coord[(local_idx + 2) % 3] - coord[local_idx];
+            return p1.dot(p2) / abs(p1[0] * p2[1] - p1[1] * p2[0]);
+        }
+        void update_texcoords(const pxr::VtArray<pxr::GfVec2f>& texcoords)
+        {
+            for (int i = 0; i < 3; i++)
+                texcoord[i] = { texcoords[idx_mesh[i]][0], texcoords[idx_mesh[i]][1] };
+        }
+        void update_Lt()
+        {
+            Eigen::Matrix2f St = Eigen::Matrix2f::Zero();
+            for (int i = 0; i < 3; i++) {
+                int j = (i + 1) % 3;
+                int k = (i + 2) % 3;
+                St += cot(k) * (texcoord[i] - texcoord[j]) * (coord[i] - coord[j]).transpose();
+            }
+            Eigen::JacobiSVD<Eigen::Matrix2f> svd(St, Eigen::ComputeFullU | Eigen::ComputeFullV);
+            Lt = svd.matrixU() * svd.matrixV().transpose();
+        }
+        int oppose(int local_idx_i, int local_idx_j)
+        {
+            return 0 + 1 + 2 - local_idx_i - local_idx_j;
+        }
+        double energy()
+        {
+            double result = 0;
+            for (int i = 0; i < 3; i++) {
+                int j = (i + 1) % 3;
+                auto uij_om = texcoord[i] - texcoord[j];
+                auto xij_om = coord[i] - coord[j];
+                auto uij_eigen = Eigen::Vector2f(uij_om[0], uij_om[1]);
+                auto xij_eigen = Eigen::Vector2f(xij_om[0], xij_om[1]);
+                result += (uij_eigen - Lt * xij_eigen).squaredNorm();
+            }
+            return result / 2;
+        }
+    };
+    std::vector<TriangleARAP> triangle_maps;
+
+    double total_energy()
+    {
+        double result = 0.0;
+        for (auto face : mesh->all_faces()) 
+        {
+            result += triangle_maps[face.idx()].energy();
+        }
+        return result;
+    }
+    void initialize()
+    {
+        triangle_maps.resize(mesh->n_faces());
+        for (auto face : mesh->all_faces()) 
+        {
+            triangle_maps[face.idx()] = TriangleARAP(face, mesh, texcoords);
+        }
+
+        int fixed_point1 = 0, fixed_point2 = 0;
+        double min1 = FLT_MAX, min2 = FLT_MAX;
+        for (auto vertex : mesh->vertices())
+        {
+            int idx = vertex.idx();
+            auto texcoord = texcoords[idx];
+            double len1 = texcoord[0] * texcoord[0] + texcoord[1] * texcoord[1];
+            double len2 = (1 - texcoord[0]) * (1 - texcoord[0]) + (1 - texcoord[1]) * (1 - texcoord[1]);
+            if (len1 < min1 && len1 > 0.1)
+            {
+                min1 = len1; fixed_point1 = idx;
+            }
+            if (len2 < min2 && len2 > 0.1)
+            {
+                min2 = len2; fixed_point2 = idx;
+            }
+        }
+        add_fixed_point(fixed_point1);
+        //add_fixed_point(fixed_point2);
+    }
+    void local_phase()
+    {
+        for (auto face : mesh->all_faces()) 
+        {
+            triangle_maps[face.idx()].update_texcoords(texcoords);
+            triangle_maps[face.idx()].update_Lt();
+        }
+    }
+    void global_phase()
+    {
+        std::vector<Eigen::Triplet<float>> tripletList;
+
+        int size = mesh->n_vertices();
+        tripletList.reserve(size);
+
+        Eigen::VectorXf U[2] = { Eigen::VectorXf(size), Eigen::VectorXf(size) },
+                 B[2] = { Eigen::VectorXf(size), Eigen::VectorXf(size) };
+
+		tripletList.push_back({ fixed_point1, fixed_point1, 1 });
+		B[0](fixed_point1) = texcoords[fixed_point1][0];
+		B[1](fixed_point1) = texcoords[fixed_point1][1];
+
+        Eigen::Vector2f fixed_point1_coord = Eigen::Vector2f(texcoords[fixed_point1][0], texcoords[fixed_point1][1]);
+        Eigen::Vector2f fixed_point2_coord = Eigen::Vector2f(texcoords[fixed_point2][0], texcoords[fixed_point2][1]);
+
+        for (auto vi : mesh->vertices()) {
+            int idx_i = vi.idx();
+
+            if (idx_i == fixed_point1)
+                continue; 
+
+            float weight_sum = 0;
+
+            Eigen::Vector2f Bi = Eigen::Vector2f::Zero();
+            for (auto outedge : vi.outgoing_halfedges_ccw())
+            {
+                auto vj = outedge.to();
+                int idx_j = vj.idx();
+                float cot_weight = 0;
+                if (!outedge.is_boundary()) {
+                    auto& tri = triangle_maps[outedge.face().idx()];
+                    int loc_i = tri.index(idx_i), loc_j = tri.index(idx_j);
+				    auto cot = tri.cot(tri.oppose(loc_i, loc_j));
+                    cot_weight += cot;
+                    Bi += cot * tri.Lt * (tri.coord[loc_i] - tri.coord[loc_j]); 
+                }
+                if (!outedge.opp().is_boundary()) {
+                    auto& tri = triangle_maps[outedge.opp().face().idx()];
+                    int loc_i = tri.index(idx_i), loc_j = tri.index(idx_j);
+                    auto cot = tri.cot(tri.oppose(loc_i, loc_j));
+                    cot_weight += cot;
+                    Bi += cot * tri.Lt * (tri.coord[loc_i] - tri.coord[loc_j]);
+                }
+                weight_sum += cot_weight; 
+                tripletList.push_back({ idx_i, idx_j, -cot_weight });
+            }
+            tripletList.push_back({ idx_i, idx_i, weight_sum });
+            B[0](idx_i) = Bi.x();
+            B[1](idx_i) = Bi.y();
+        }
+
+        auto matrix_ = Eigen::SparseMatrix<float>(size + 1, size);
+        matrix_.setFromTriplets(tripletList.begin(), tripletList.end());
+        matrix_.makeCompressed();
+
+        auto split_ = Eigen::SparseLU<Eigen::SparseMatrix<float>>();
+        split_.compute(matrix_);
+        if (split_.info() == Eigen::Success) {
+            for (int c = 0; c < 2; c++)
+                U[c] = split_.solve(B[c]);
+        }
+        else {
+            std::cout << "LU Fail" << std::endl;
+        }
+
+        for (int i = 0; i < size; i++)
+            texcoords[i] = { U[0](i), U[1](i) };
+    }
+
+public:
+    void add_fixed_point(int idx)
+    {
+        fixed_points.insert(idx);
+    }
+    decltype(texcoords) compute(bool output = true)
+    {
+        if (iterate_number > 0) {
+            initialize();
+
+            if(output) std::cout << "ARAP Start with Energy: " << total_energy() << std::endl;
+
+            for (int iter = 0; iter < iterate_number; iter++) {
+                local_phase();
+                if(output) std::cout << "Local #" << iter + 1 << " Energy: " << total_energy() << std::endl;
+                global_phase();
+                if(output) std::cout << "Global #" << iter + 1 << " Energy: " << total_energy() << std::endl;
+            }
+        }
+        
+        if (compress) {
+            float xmin = FLT_MAX, xmax = FLT_MIN, ymin = FLT_MAX, ymax = FLT_MIN;
+            for (int i = 0; i < mesh->n_vertices(); i++) {
+                xmin = std::min(xmin, texcoords[i][0]);
+                xmax = std::max(xmax, texcoords[i][0]);
+                ymin = std::min(ymin, texcoords[i][1]);
+                ymax = std::max(ymax, texcoords[i][1]);
+            }
+            for (int i = 0; i < mesh->n_vertices(); i++) {
+                texcoords[i][0] -= xmin;
+                texcoords[i][1] -= ymin;
+                texcoords[i] /= std::max(xmax - xmin, ymax - ymin);
+            }
+        }
+        return texcoords;
+    }
+};
+
 static void node_arap_declare(NodeDeclarationBuilder& b)
 {
-    // Input-1: Original 3D mesh with boundary
-    // Maybe you need to add another input for initialization?
     b.add_input<decl::Geometry>("Input");
-
-    /*
-    ** NOTE: You can add more inputs or outputs if necessary. For example, in
-    ** some cases, additional information (e.g. other mesh geometry, other 
-    ** parameters) is required to perform the computation.
-    **
-    ** Be sure that the input/outputs do not share the same name. You can add
-    ** one geometry as
-    **
-    **                b.add_input<decl::Geometry>("Input");
-    **
-    ** Or maybe you need a value buffer like:
-    **
-    **                b.add_input<decl::Float1Buffer>("Weights");
-    */
-
-    // Output-1: The UV coordinate of the mesh, provided by ARAP algorithm
+    b.add_input<decl::Float2Buffer>("Initial Guess");
+    b.add_input<decl::Int>("Iterate Number").min(0).max(30).default_val(10);
     b.add_output<decl::Float2Buffer>("OutputUV");
 }
-
 static void node_arap_exec(ExeParams params)
 {
-    // Get the input from params
     auto input = params.get_input<GOperandBase>("Input");
+    auto texcoords = params.get_input<pxr::VtArray<pxr::GfVec2f>>("Initial Guess");
+    int iterate_number = params.get_input<int>("Iterate Number");
 
-    // Avoid processing the node when there is no input
-    if (!input.get_component<MeshComponent>()) {
-        throw std::runtime_error("Need Geometry Input.");
-    }
-    throw std::runtime_error("Not implemented");
+    auto mesh = operand_to_openmesh(&input);
 
-    /* ----------------------------- Preprocess -------------------------------
-    ** Create a halfedge structure (using OpenMesh) for the input mesh. The
-    ** half-edge data structure is a widely used data structure in geometric
-    ** processing, offering convenient operations for traversing and modifying
-    ** mesh elements.
-    */
-    auto halfedge_mesh = operand_to_openmesh(&input);
+    auto parameterizer = new ParameterizeARAP(mesh, texcoords, iterate_number);
 
-   /* ------------- [HW5_TODO] ARAP Parameterization Implementation -----------
-   ** Implement ARAP mesh parameterization to minimize local distortion.
-   **
-   ** Steps:
-   ** 1. Initial Setup: Use a HW4 parameterization result as initial setup.
-   **
-   ** 2. Local Phase: For each triangle, compute local orthogonal approximation
-   **    (Lt) by computing SVD of Jacobian(Jt) with fixed u.
-   **
-   ** 3. Global Phase: With Lt fixed, update parameter coordinates(u) by solving
-   **    a pre-factored global sparse linear system.
-   **
-   ** 4. Iteration: Repeat Steps 2 and 3 to refine parameterization.
-   **
-   ** Note:
-   **  - Fixed points' selection is crucial for ARAP and ASAP.
-   **  - Encapsulate algorithms into classes for modularity.
-   */
+    pxr::VtArray<pxr::GfVec2f> uv_result = parameterizer->compute();
 
-    // The result UV coordinates 
-    pxr::VtArray<pxr::GfVec2f> uv_result;
+    delete parameterizer; 
 
-    // Set the output of the node
     params.set_output("OutputUV", uv_result);
 }
 
