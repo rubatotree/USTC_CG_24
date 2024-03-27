@@ -19,6 +19,9 @@ class ParameterizeARAP
     int iterate_number;
     int fixed_point1, fixed_point2;
     bool compress = true;
+    //Eigen::SparseLU<Eigen::SparseMatrix<float>> solver_;
+    Eigen::SimplicialCholesky<Eigen::SparseMatrix<float>> solver_;
+    Eigen::SparseMatrix<float> matrix_;
    
    public:
     ParameterizeARAP(
@@ -30,6 +33,80 @@ class ParameterizeARAP
           iterate_number(iterate_number),
           compress(compress)
     {
+        triangle_maps.resize(mesh->n_faces());
+        for (auto face : mesh->all_faces()) {
+            triangle_maps[face.idx()] = TriangleARAP(face, mesh, texcoords);
+        }
+
+        fixed_point1 = 0;
+        fixed_point2 = 0;
+        double min1 = FLT_MAX, min2 = FLT_MAX;
+        for (auto vertex : mesh->vertices()) {
+            int idx = vertex.idx();
+            auto texcoord = texcoords[idx];
+            double len1 = texcoord[0] * texcoord[0] + texcoord[1] * texcoord[1];
+            double len2 =
+                (1 - texcoord[0]) * (1 - texcoord[0]) + (1 - texcoord[1]) * (1 - texcoord[1]);
+            if (len1 < min1 && len1 > 0.1) {
+                min1 = len1;
+                fixed_point1 = idx;
+            }
+            if (len2 < min2 && len2 > 0.1) {
+                min2 = len2;
+                fixed_point2 = idx;
+            }
+        }
+        
+        
+        // Precalculate Matrix
+        matrix_ = Eigen::SparseMatrix<float>(mesh->n_vertices(), mesh->n_vertices());
+
+        std::vector<Eigen::Triplet<float>> tripletList;
+
+        int size = mesh->n_vertices();
+        tripletList.reserve(size);
+        tripletList.push_back({ fixed_point1, fixed_point1, 1 });
+
+        for (auto vi : mesh->vertices()) {
+            int idx_i = vi.idx();
+
+            if (idx_i == fixed_point1)
+                continue;
+
+            float weight_sum = 0;
+
+            for (auto outedge : vi.outgoing_halfedges_ccw()) {
+                auto vj = outedge.to();
+                int idx_j = vj.idx();
+
+                float cot_weight = 0;
+                if (!outedge.is_boundary()) {
+                    auto& tri = triangle_maps[outedge.face().idx()];
+                    int loc_i = tri.index(idx_i), loc_j = tri.index(idx_j);
+                    auto cot = tri.cot(tri.oppose(loc_i, loc_j));
+                    cot_weight += cot;
+                }
+                if (!outedge.opp().is_boundary()) {
+                    auto& tri = triangle_maps[outedge.opp().face().idx()];
+                    int loc_i = tri.index(idx_i), loc_j = tri.index(idx_j);
+                    auto cot = tri.cot(tri.oppose(loc_i, loc_j));
+                    cot_weight += cot;
+                }
+                weight_sum += cot_weight;
+                if (idx_j != fixed_point1)
+                    tripletList.push_back({ idx_i, idx_j, -cot_weight });
+            }
+            tripletList.push_back({ idx_i, idx_i, weight_sum });
+        }
+
+        matrix_.setFromTriplets(tripletList.begin(), tripletList.end());
+        matrix_.makeCompressed();
+
+        solver_.compute(matrix_);
+        if (solver_.info() != Eigen::Success) {
+            std::cout << "LU Fail" << std::endl;
+            iterate_number = -1;
+        }
 	}
 
    private:
@@ -127,31 +204,7 @@ class ParameterizeARAP
     }
     void initialize()
     {
-        triangle_maps.resize(mesh->n_faces());
-        for (auto face : mesh->all_faces()) 
-        {
-            triangle_maps[face.idx()] = TriangleARAP(face, mesh, texcoords);
-        }
-
-        int fixed_point1 = 0, fixed_point2 = 0;
-        double min1 = FLT_MAX, min2 = FLT_MAX;
-        for (auto vertex : mesh->vertices())
-        {
-            int idx = vertex.idx();
-            auto texcoord = texcoords[idx];
-            double len1 = texcoord[0] * texcoord[0] + texcoord[1] * texcoord[1];
-            double len2 = (1 - texcoord[0]) * (1 - texcoord[0]) + (1 - texcoord[1]) * (1 - texcoord[1]);
-            if (len1 < min1 && len1 > 0.1)
-            {
-                min1 = len1; fixed_point1 = idx;
-            }
-            if (len2 < min2 && len2 > 0.1)
-            {
-                min2 = len2; fixed_point2 = idx;
-            }
-        }
-        add_fixed_point(fixed_point1);
-        //add_fixed_point(fixed_point2);
+        
     }
     void local_phase()
     {
@@ -163,21 +216,16 @@ class ParameterizeARAP
     }
     void global_phase()
     {
-        std::vector<Eigen::Triplet<float>> tripletList;
-
         int size = mesh->n_vertices();
-        tripletList.reserve(size);
 
         Eigen::VectorXf U[2] = { Eigen::VectorXf(size), Eigen::VectorXf(size) },
                  B[2] = { Eigen::VectorXf(size), Eigen::VectorXf(size) };
-
-		tripletList.push_back({ fixed_point1, fixed_point1, 1 });
+		
 		B[0](fixed_point1) = texcoords[fixed_point1][0];
 		B[1](fixed_point1) = texcoords[fixed_point1][1];
 
-        Eigen::Vector2f fixed_point1_coord = Eigen::Vector2f(texcoords[fixed_point1][0], texcoords[fixed_point1][1]);
-        Eigen::Vector2f fixed_point2_coord = Eigen::Vector2f(texcoords[fixed_point2][0], texcoords[fixed_point2][1]);
-
+        auto fixed_point1_coord = Eigen::Vector2f(texcoords[fixed_point1][0], texcoords[fixed_point1][1]);
+        auto fixed_point2_coord = Eigen::Vector2f(texcoords[fixed_point2][0], texcoords[fixed_point2][1]);
         for (auto vi : mesh->vertices()) {
             int idx_i = vi.idx();
 
@@ -206,41 +254,41 @@ class ParameterizeARAP
                     cot_weight += cot;
                     Bi += cot * tri.Lt * (tri.coord[loc_i] - tri.coord[loc_j]);
                 }
+                if (idx_j == fixed_point1)
+                {
+                    Bi[0] += cot_weight * fixed_point1_coord[0];
+                    Bi[1] += cot_weight * fixed_point1_coord[1];
+                }
                 weight_sum += cot_weight; 
-                tripletList.push_back({ idx_i, idx_j, -cot_weight });
             }
-            tripletList.push_back({ idx_i, idx_i, weight_sum });
             B[0](idx_i) = Bi.x();
             B[1](idx_i) = Bi.y();
         }
 
-        auto matrix_ = Eigen::SparseMatrix<float>(size + 1, size);
-        matrix_.setFromTriplets(tripletList.begin(), tripletList.end());
-        matrix_.makeCompressed();
+        for (int c = 0; c < 2; c++)
+            U[c] = solver_.solve(B[c]);
 
-        auto split_ = Eigen::SparseLU<Eigen::SparseMatrix<float>>();
-        split_.compute(matrix_);
-        if (split_.info() == Eigen::Success) {
-            for (int c = 0; c < 2; c++)
-                U[c] = split_.solve(B[c]);
-        }
-        else {
-            std::cout << "LU Fail" << std::endl;
-        }
+        auto fixed_point2_coord_upd = Eigen::Vector2f(U[0](fixed_point2), U[1](fixed_point2));
+        auto vsrc = (fixed_point2_coord_upd - fixed_point1_coord).normalized();
+        auto vdest = (fixed_point2_coord - fixed_point1_coord).normalized();
+        auto zrotate = Eigen::Vector2f(
+            vdest[0] * vsrc[0] + vdest[1] * vsrc[1], -vdest[0] * vsrc[1] + vdest[1] * vsrc[0]);
 
         for (int i = 0; i < size; i++)
-            texcoords[i] = { U[0](i), U[1](i) };
+        {
+            auto relate_coord = Eigen::Vector2f(U[0](i), U[1](i)) - fixed_point1_coord;
+            auto relate_coord_rotated = Eigen::Vector2f(
+                relate_coord[0] * zrotate[0] - relate_coord[1] * zrotate[1],
+                relate_coord[0] * zrotate[1] + relate_coord[1] * zrotate[0]);
+            auto texcoord_eigen = fixed_point1_coord + relate_coord_rotated;
+            texcoords[i] = { texcoord_eigen[0], texcoord_eigen[1] };
+        }
     }
 
 public:
-    void add_fixed_point(int idx)
-    {
-        fixed_points.insert(idx);
-    }
     decltype(texcoords) compute(bool output = true)
     {
         if (iterate_number > 0) {
-            initialize();
 
             if(output) std::cout << "ARAP Start with Energy: " << total_energy() << std::endl;
 
