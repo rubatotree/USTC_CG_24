@@ -19,7 +19,6 @@ class ParameterizeARAP
     int iterate_number;
     int fixed_point1, fixed_point2;
     bool compress = true;
-    //Eigen::SparseLU<Eigen::SparseMatrix<float>> solver_;
     Eigen::SimplicialCholesky<Eigen::SparseMatrix<float>> solver_;
     Eigen::SparseMatrix<float> matrix_;
    
@@ -27,7 +26,7 @@ class ParameterizeARAP
     ParameterizeARAP(
         std::shared_ptr<USTC_CG::PolyMesh>& mesh,
         pxr::VtArray<pxr::GfVec2f> texcoords,
-        int iterate_number, bool compress = false)
+        int iterate_number, bool compress = true)
         : mesh(mesh),
           texcoords(texcoords),
           iterate_number(iterate_number),
@@ -202,10 +201,6 @@ class ParameterizeARAP
         }
         return result;
     }
-    void initialize()
-    {
-        
-    }
     void local_phase()
     {
         for (auto face : mesh->all_faces()) 
@@ -235,20 +230,22 @@ class ParameterizeARAP
             float weight_sum = 0;
 
             Eigen::Vector2f Bi = Eigen::Vector2f::Zero();
-            for (auto outedge : vi.outgoing_halfedges_ccw())
-            {
+            for (auto outedge : vi.outgoing_halfedges_ccw()) {
                 auto vj = outedge.to();
                 int idx_j = vj.idx();
                 float cot_weight = 0;
-                if (!outedge.is_boundary()) {
-                    auto& tri = triangle_maps[outedge.face().idx()];
+                int face = outedge.face().idx(), face_opp = outedge.opp().face().idx();
+                if (face != -1)
+                {
+                    auto& tri = triangle_maps[face];
                     int loc_i = tri.index(idx_i), loc_j = tri.index(idx_j);
 				    auto cot = tri.cot(tri.oppose(loc_i, loc_j));
                     cot_weight += cot;
                     Bi += cot * tri.Lt * (tri.coord[loc_i] - tri.coord[loc_j]); 
                 }
-                if (!outedge.opp().is_boundary()) {
-                    auto& tri = triangle_maps[outedge.opp().face().idx()];
+                if (face_opp != -1)
+                {
+                    auto& tri = triangle_maps[face_opp];
                     int loc_i = tri.index(idx_i), loc_j = tri.index(idx_j);
                     auto cot = tri.cot(tri.oppose(loc_i, loc_j));
                     cot_weight += cot;
@@ -289,7 +286,6 @@ public:
     decltype(texcoords) compute(bool output = true)
     {
         if (iterate_number > 0) {
-
             if(output) std::cout << "ARAP Start with Energy: " << total_energy() << std::endl;
 
             for (int iter = 0; iter < iterate_number; iter++) {

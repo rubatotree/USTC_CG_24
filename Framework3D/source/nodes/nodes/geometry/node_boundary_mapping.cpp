@@ -87,20 +87,50 @@ static void node_map_boundary_to_circle_exec(ExeParams params)
         int n_boundary_vertices = 0;
         std::vector<OpenMesh::SmartVertexHandle> boundary;
         OpenMesh::SmartHalfedgeHandle cur_boundary;
+        double boundary_length = 0;
+        std::vector<bool> visited;
+        visited.resize(halfedge_mesh->n_halfedges());
         for (auto he : halfedge_mesh->halfedges())
         {
+            if (visited[he.idx()])
+                continue;
             if (he.is_boundary())
             {
+                visited[he.idx()] = true;
                 n_boundary_vertices++;
-                cur_boundary = he;
+                double len =
+                    (halfedge_mesh->point(he.to()) - halfedge_mesh->point(he.from())).length();
+                auto itr = he.next();
+                while (itr != he)
+                {
+                    visited[itr.idx()] = true;
+                    n_boundary_vertices++;
+                    len += (halfedge_mesh->point(itr.to()) - halfedge_mesh->point(itr.from())).length();
+                    itr = itr.next();
+                }
+                if (len > boundary_length)
+                {
+                    cur_boundary = he;
+                    boundary_length = len;
+                }
             }
         }
         if (n_boundary_vertices >= 1)
         {
 			for (int i = 0; i < n_boundary_vertices; i++)
 			{
+                // High genus bugfix
+                if (boundary.size() >= 1 && boundary[0] == cur_boundary.from())
+                {
+                    n_boundary_vertices = boundary.size();
+                    break;
+                }
 				boundary.push_back(cur_boundary.from());
 				cur_boundary = cur_boundary.next();
+            }
+			for (auto vertex : halfedge_mesh->vertices())
+			{
+				halfedge_mesh->set_point(vertex, {1, 1, 1});
 			}
             for (int i = 0; i < boundary.size(); i++)
             {
@@ -173,21 +203,51 @@ static void node_map_boundary_to_square_exec(ExeParams params)
         int n_boundary_vertices = 0;
         std::vector<OpenMesh::SmartVertexHandle> boundary;
         OpenMesh::SmartHalfedgeHandle cur_boundary;
+        double boundary_length = 0;
+        std::vector<bool> visited;
+        visited.resize(halfedge_mesh->n_halfedges());
         for (auto he : halfedge_mesh->halfedges())
         {
+            if (visited[he.idx()])
+                continue;
             if (he.is_boundary())
             {
+                visited[he.idx()] = true;
                 n_boundary_vertices++;
-                cur_boundary = he;
+                double len =
+                    (halfedge_mesh->point(he.to()) - halfedge_mesh->point(he.from())).length();
+                auto itr = he.next();
+                while (itr != he)
+                {
+                    visited[itr.idx()] = true;
+                    n_boundary_vertices++;
+                    len += (halfedge_mesh->point(itr.to()) - halfedge_mesh->point(itr.from())).length();
+                    itr = itr.next();
+                }
+                if (len > boundary_length)
+                {
+                    cur_boundary = he;
+                    boundary_length = len;
+                }
             }
         }
         if (n_boundary_vertices >= 1)
         {
 			for (int i = 0; i < n_boundary_vertices; i++)
 			{
+                // High genus bugfix
+                if (boundary.size() >= 1 && boundary[0] == cur_boundary.from())
+                {
+                    n_boundary_vertices = boundary.size();
+                    break;
+                }
 				boundary.push_back(cur_boundary.from());
 				cur_boundary = cur_boundary.next();
             }
+			for (auto vertex : halfedge_mesh->vertices())
+			{
+				halfedge_mesh->set_point(vertex, {1, 1, 1});
+			}
             double step = 4.0 / n_boundary_vertices;
             for (int i = 0; i < n_boundary_vertices; i++) {
                 double t1 = i * step;

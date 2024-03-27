@@ -46,7 +46,7 @@ static void node_min_surf_cotangent_exec(ExeParams params)
                                  Eigen::VectorXf(size) };
 
         for (auto vertex : halfedge_mesh->vertices()) {
-            if (vertex.is_boundary()) {
+            if (halfedge_mesh_fixed->point(vertex)[2] < 0.1) {
                 triplet_list.push_back({ vertex.idx(), vertex.idx(), 1 });
                 for (int c = 0; c < 3; c++)
                     G[c](vertex.idx()) = halfedge_mesh_fixed->point(vertex)[c];
