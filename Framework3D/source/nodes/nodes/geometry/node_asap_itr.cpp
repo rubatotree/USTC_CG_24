@@ -170,11 +170,14 @@ class ParameterASAP_Iteration
                 int k = (i + 2) % 3;
                 St += cot(k) * (texcoord[i] - texcoord[j]) * (coord[i] - coord[j]).transpose();
             }
-            
+            Eigen::Matrix2f matX = Eigen::Matrix2f(),
+							matU = Eigen::Matrix2f();
+            matX << coord[1], coord[2];
+            matU << texcoord[1] - texcoord[0], texcoord[2] - texcoord[0];
+            St = matU * matX.inverse();
             Eigen::JacobiSVD<Eigen::Matrix2f> svd(St, Eigen::ComputeFullU | Eigen::ComputeFullV);
             float singular_avg = (svd.singularValues()[0] + svd.singularValues()[1]) / 2;
             // float singular_avg = sqrt(svd.singularValues()[0] * svd.singularValues()[1]);
-            // float singular_avg = svd.singularValues().sum() / 2;
             Lt = svd.matrixU() * (Eigen::Matrix2f::Identity() * singular_avg) * svd.matrixV().transpose();
         }
         int oppose(int local_idx_i, int local_idx_j)
