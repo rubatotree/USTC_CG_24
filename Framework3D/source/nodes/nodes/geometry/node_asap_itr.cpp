@@ -9,9 +9,9 @@
 #include <iostream>
 #include <set>
 
-namespace USTC_CG::node_arap {
+namespace USTC_CG::node_asap_itr {
 
-class ParameterizeARAP
+class ParameterASAP_Iteration
 {
    private:
     const std::shared_ptr<USTC_CG::PolyMesh>& mesh;
@@ -23,10 +23,11 @@ class ParameterizeARAP
     Eigen::SparseMatrix<float> matrix_;
    
    public:
-    ParameterizeARAP(
+    ParameterASAP_Iteration(
         std::shared_ptr<USTC_CG::PolyMesh>& mesh,
         pxr::VtArray<pxr::GfVec2f> texcoords,
-        int iterate_number, bool compress = true)
+        int iterate_number,
+        bool compress = true)
         : mesh(mesh),
           texcoords(texcoords),
           iterate_number(iterate_number),
@@ -34,7 +35,7 @@ class ParameterizeARAP
     {
         triangle_maps.resize(mesh->n_faces());
         for (auto face : mesh->all_faces()) {
-            triangle_maps[face.idx()] = TriangleARAP(face, mesh, texcoords);
+            triangle_maps[face.idx()] = TriangleASAP(face, mesh, texcoords);
         }
 
         fixed_point1 = 0;
@@ -109,16 +110,16 @@ class ParameterizeARAP
 	}
 
    private:
-    struct TriangleARAP
+    struct TriangleASAP
     {
         Eigen::Matrix2f Lt = Eigen::Matrix2f::Identity();
         int idx_mesh[3] = { -1, -1, -1 };
         Eigen::Vector2f coord[3] = { { 0, 0 }, { 0, 0 }, { 0, 0 } };
         Eigen::Vector2f texcoord[3] = { { 0, 0 }, { 0, 0 }, { 0, 0 } };
-        TriangleARAP()
+        TriangleASAP()
         {
         }
-        TriangleARAP(
+        TriangleASAP(
             OpenMesh::SmartFaceHandle& face,
             const std::shared_ptr<USTC_CG::PolyMesh>& mesh,
             const pxr::VtArray<pxr::GfVec2f>& texcoords)
@@ -169,8 +170,12 @@ class ParameterizeARAP
                 int k = (i + 2) % 3;
                 St += cot(k) * (texcoord[i] - texcoord[j]) * (coord[i] - coord[j]).transpose();
             }
+            
             Eigen::JacobiSVD<Eigen::Matrix2f> svd(St, Eigen::ComputeFullU | Eigen::ComputeFullV);
-            Lt = svd.matrixU() * svd.matrixV().transpose();
+            float singular_avg = (svd.singularValues()[0] + svd.singularValues()[1]) / 2;
+            // float singular_avg = sqrt(svd.singularValues()[0] * svd.singularValues()[1]);
+            // float singular_avg = svd.singularValues().sum() / 2;
+            Lt = svd.matrixU() * (Eigen::Matrix2f::Identity() * singular_avg) * svd.matrixV().transpose();
         }
         int oppose(int local_idx_i, int local_idx_j)
         {
@@ -190,7 +195,7 @@ class ParameterizeARAP
             return result / 2;
         }
     };
-    std::vector<TriangleARAP> triangle_maps;
+    std::vector<TriangleASAP> triangle_maps;
 
     double total_energy()
     {
@@ -230,7 +235,7 @@ class ParameterizeARAP
             float weight_sum = 0;
 
             Eigen::Vector2f Bi = Eigen::Vector2f::Zero();
-            for (auto outedge : vi.outgoing_halfedges_cw()) {
+            for (auto outedge : vi.outgoing_halfedges_ccw()) {
                 auto vj = outedge.to();
                 int idx_j = vj.idx();
                 float cot_weight = 0;
@@ -286,7 +291,7 @@ public:
     decltype(texcoords) compute(bool output = true)
     {
         if (iterate_number > 0) {
-            if(output) std::cout << "ARAP Start with Energy: " << total_energy() << std::endl;
+            if(output) std::cout << "ASAP Start with Energy: " << total_energy() << std::endl;
 
             for (int iter = 0; iter < iterate_number; iter++) {
                 local_phase();
@@ -314,14 +319,14 @@ public:
     }
 };
 
-static void node_arap_declare(NodeDeclarationBuilder& b)
+static void node_asap_declare(NodeDeclarationBuilder& b)
 {
     b.add_input<decl::Geometry>("Input");
     b.add_input<decl::Float2Buffer>("Initial Guess");
     b.add_input<decl::Int>("Iterate Number").min(0).max(30).default_val(10);
     b.add_output<decl::Float2Buffer>("OutputUV");
 }
-static void node_arap_exec(ExeParams params)
+static void node_asap_exec(ExeParams params)
 {
     auto input = params.get_input<GOperandBase>("Input");
     auto texcoords = params.get_input<pxr::VtArray<pxr::GfVec2f>>("Initial Guess");
@@ -329,7 +334,7 @@ static void node_arap_exec(ExeParams params)
 
     auto mesh = operand_to_openmesh(&input);
 
-    auto parameterizer = new ParameterizeARAP(mesh, texcoords, iterate_number);
+    auto parameterizer = new ParameterASAP_Iteration(mesh, texcoords, iterate_number);
 
     pxr::VtArray<pxr::GfVec2f> uv_result = parameterizer->compute();
 
@@ -342,14 +347,14 @@ static void node_register()
 {
     static NodeTypeInfo ntype;
 
-    strcpy(ntype.ui_name, "ARAP Parameterization");
-    strcpy_s(ntype.id_name, "geom_arap");
+    strcpy(ntype.ui_name, "ASAP Parameterization (Iteration)");
+    strcpy_s(ntype.id_name, "geom_asap_itr");
 
     geo_node_type_base(&ntype);
-    ntype.node_execute = node_arap_exec;
-    ntype.declare = node_arap_declare;
+    ntype.node_execute = node_asap_exec;
+    ntype.declare = node_asap_declare;
     nodeRegisterType(&ntype);
 }
 
 NOD_REGISTER_NODE(node_register)
-}  // namespace USTC_CG::node_arap
+}  // namespace USTC_CG::node_asap_itr
