@@ -11,6 +11,88 @@
 
 namespace USTC_CG::node_arap {
 
+struct TriangleARAP
+{
+	Eigen::Matrix2f Lt = Eigen::Matrix2f::Identity();
+	int idx_mesh[3] = { -1, -1, -1 };
+	Eigen::Vector2f coord[3] = { { 0, 0 }, { 0, 0 }, { 0, 0 } };
+	Eigen::Vector2f texcoord[3] = { { 0, 0 }, { 0, 0 }, { 0, 0 } };
+	TriangleARAP()
+	{
+	}
+	TriangleARAP(
+		OpenMesh::SmartFaceHandle& face,
+		const std::shared_ptr<USTC_CG::PolyMesh>& mesh,
+		const pxr::VtArray<pxr::GfVec2f>& texcoords)
+	{
+		double len[3];
+		int i = 0;
+		for (auto vh : mesh->fv_cw_range(face)) {
+			idx_mesh[i] = vh.idx();
+			i++;
+		}
+		for (int i = 0; i < 3; i++) {
+			int j = (i + 1) % 3;
+			int k = (i + 2) % 3;
+			auto p1 = mesh->point(mesh->vertex_handle(idx_mesh[j]));
+			auto p2 = mesh->point(mesh->vertex_handle(idx_mesh[k]));
+			len[i] = (p1 - p2).length();
+		}
+		double cos0 = (len[1] * len[1] + len[2] * len[2] - len[0] * len[0]) / (2 * len[1] * len[2]);
+		coord[0] = Eigen::Vector2f(0, 0);
+		coord[1] = Eigen::Vector2f(len[2], 0);
+		coord[2] = Eigen::Vector2f(len[1] * cos0, len[1] * sqrt(1 - cos0 * cos0));
+		update_texcoords(texcoords);
+	}
+	int index(int mesh_idx)
+	{
+		for (int i = 0; i < 3; i++) {
+			if (idx_mesh[i] == mesh_idx)
+				return i;
+		}
+		return -1;
+	}
+	double cot(int local_idx)
+	{
+		Eigen::Vector2f p1 = coord[(local_idx + 1) % 3] - coord[local_idx];
+		Eigen::Vector2f p2 = coord[(local_idx + 2) % 3] - coord[local_idx];
+		return p1.dot(p2) / abs(p1[0] * p2[1] - p1[1] * p2[0]);
+	}
+	void update_texcoords(const pxr::VtArray<pxr::GfVec2f>& texcoords)
+	{
+		for (int i = 0; i < 3; i++)
+			texcoord[i] = { texcoords[idx_mesh[i]][0], texcoords[idx_mesh[i]][1] };
+	}
+	void update_Lt()
+	{
+		Eigen::Matrix2f St = Eigen::Matrix2f::Zero();
+		for (int i = 0; i < 3; i++) {
+			int j = (i + 1) % 3;
+			int k = (i + 2) % 3;
+			St += cot(k) * (texcoord[i] - texcoord[j]) * (coord[i] - coord[j]).transpose();
+		}
+		Eigen::JacobiSVD<Eigen::Matrix2f> svd(St, Eigen::ComputeFullU | Eigen::ComputeFullV);
+		Lt = svd.matrixU() * svd.matrixV().transpose();
+	}
+	int oppose(int local_idx_i, int local_idx_j)
+	{
+		return 0 + 1 + 2 - local_idx_i - local_idx_j;
+	}
+	double energy()
+	{
+		double result = 0;
+		for (int i = 0; i < 3; i++) {
+			int j = (i + 1) % 3;
+			auto uij_om = texcoord[i] - texcoord[j];
+			auto xij_om = coord[i] - coord[j];
+			auto uij_eigen = Eigen::Vector2f(uij_om[0], uij_om[1]);
+			auto xij_eigen = Eigen::Vector2f(xij_om[0], xij_om[1]);
+			result += (uij_eigen - Lt * xij_eigen).squaredNorm();
+		}
+		return result / 2;
+	}
+};
+
 class ParameterizeARAP
 {
    private:
@@ -21,186 +103,7 @@ class ParameterizeARAP
     bool compress = true;
     Eigen::SimplicialCholesky<Eigen::SparseMatrix<float>> solver_;
     Eigen::SparseMatrix<float> matrix_;
-   
-   public:
-    ParameterizeARAP(
-        std::shared_ptr<USTC_CG::PolyMesh>& mesh,
-        pxr::VtArray<pxr::GfVec2f> texcoords,
-        int iterate_number, bool compress = true)
-        : mesh(mesh),
-          texcoords(texcoords),
-          iterate_number(iterate_number),
-          compress(compress)
-    {
-        triangle_maps.resize(mesh->n_faces());
-        for (auto face : mesh->all_faces()) {
-            triangle_maps[face.idx()] = TriangleARAP(face, mesh, texcoords);
-        }
-
-        fixed_point1 = 0;
-        fixed_point2 = 0;
-        double min1 = FLT_MAX, min2 = FLT_MAX;
-        for (auto vertex : mesh->vertices()) {
-            int idx = vertex.idx();
-            auto texcoord = texcoords[idx];
-            double len1 = texcoord[0] * texcoord[0] + texcoord[1] * texcoord[1];
-            double len2 =
-                (1 - texcoord[0]) * (1 - texcoord[0]) + (1 - texcoord[1]) * (1 - texcoord[1]);
-            if (len1 < min1 && len1 > 0.1) {
-                min1 = len1;
-                fixed_point1 = idx;
-            }
-            if (len2 < min2 && len2 > 0.1) {
-                min2 = len2;
-                fixed_point2 = idx;
-            }
-        }
-        
-        
-        // Precalculate Matrix
-        matrix_ = Eigen::SparseMatrix<float>(mesh->n_vertices(), mesh->n_vertices());
-
-        std::vector<Eigen::Triplet<float>> tripletList;
-
-        int size = mesh->n_vertices();
-        tripletList.reserve(size);
-        tripletList.push_back({ fixed_point1, fixed_point1, 1 });
-
-        for (auto vi : mesh->vertices()) {
-            int idx_i = vi.idx();
-
-            if (idx_i == fixed_point1)
-                continue;
-
-            float weight_sum = 0;
-
-            for (auto outedge : vi.outgoing_halfedges_ccw()) {
-                auto vj = outedge.to();
-                int idx_j = vj.idx();
-
-                float cot_weight = 0;
-                if (!outedge.is_boundary()) {
-                    auto& tri = triangle_maps[outedge.face().idx()];
-                    int loc_i = tri.index(idx_i), loc_j = tri.index(idx_j);
-                    auto cot = tri.cot(tri.oppose(loc_i, loc_j));
-                    cot_weight += cot;
-                }
-                if (!outedge.opp().is_boundary()) {
-                    auto& tri = triangle_maps[outedge.opp().face().idx()];
-                    int loc_i = tri.index(idx_i), loc_j = tri.index(idx_j);
-                    auto cot = tri.cot(tri.oppose(loc_i, loc_j));
-                    cot_weight += cot;
-                }
-                weight_sum += cot_weight;
-                if (idx_j != fixed_point1)
-                    tripletList.push_back({ idx_i, idx_j, -cot_weight });
-            }
-            tripletList.push_back({ idx_i, idx_i, weight_sum });
-        }
-
-        matrix_.setFromTriplets(tripletList.begin(), tripletList.end());
-        matrix_.makeCompressed();
-
-        solver_.compute(matrix_);
-        if (solver_.info() != Eigen::Success) {
-            std::cout << "LU Fail" << std::endl;
-            iterate_number = -1;
-        }
-	}
-
-   private:
-    struct TriangleARAP
-    {
-        Eigen::Matrix2f Lt = Eigen::Matrix2f::Identity();
-        int idx_mesh[3] = { -1, -1, -1 };
-        Eigen::Vector2f coord[3] = { { 0, 0 }, { 0, 0 }, { 0, 0 } };
-        Eigen::Vector2f texcoord[3] = { { 0, 0 }, { 0, 0 }, { 0, 0 } };
-        TriangleARAP()
-        {
-        }
-        TriangleARAP(
-            OpenMesh::SmartFaceHandle& face,
-            const std::shared_ptr<USTC_CG::PolyMesh>& mesh,
-            const pxr::VtArray<pxr::GfVec2f>& texcoords)
-        {
-            double len[3];
-		    int i = 0;
-            for (auto vh : mesh->fv_cw_range(face)) {
-			    idx_mesh[i] = vh.idx();
-			    i++;
-		    }
-            for (int i = 0; i < 3; i++) {
-			    int j = (i + 1) % 3;
-			    int k = (i + 2) % 3;
-			    auto p1 = mesh->point(mesh->vertex_handle(idx_mesh[j]));
-			    auto p2 = mesh->point(mesh->vertex_handle(idx_mesh[k]));
-			    len[i] = (p1 - p2).length();
-		    }
-            double cos0 = (len[1] * len[1] + len[2] * len[2] - len[0] * len[0]) / (2 * len[1] * len[2]);
-            coord[0] = Eigen::Vector2f(0, 0);
-		    coord[1] = Eigen::Vector2f(len[2], 0);
-            coord[2] = Eigen::Vector2f(len[1] * cos0, len[1] * sqrt(1 - cos0 * cos0));
-            update_texcoords(texcoords);
-        }
-        int index(int mesh_idx)
-        {
-            for (int i = 0; i < 3; i++) {
-                if (idx_mesh[i] == mesh_idx)
-                    return i;
-            }
-            return -1;
-        }
-        double cot(int local_idx)
-        {
-            Eigen::Vector2f p1 = coord[(local_idx + 1) % 3] - coord[local_idx];
-            Eigen::Vector2f p2 = coord[(local_idx + 2) % 3] - coord[local_idx];
-            return p1.dot(p2) / abs(p1[0] * p2[1] - p1[1] * p2[0]);
-        }
-        void update_texcoords(const pxr::VtArray<pxr::GfVec2f>& texcoords)
-        {
-            for (int i = 0; i < 3; i++)
-                texcoord[i] = { texcoords[idx_mesh[i]][0], texcoords[idx_mesh[i]][1] };
-        }
-        void update_Lt()
-        {
-            Eigen::Matrix2f St = Eigen::Matrix2f::Zero();
-            for (int i = 0; i < 3; i++) {
-                int j = (i + 1) % 3;
-                int k = (i + 2) % 3;
-                St += cot(k) * (texcoord[i] - texcoord[j]) * (coord[i] - coord[j]).transpose();
-            }
-            Eigen::JacobiSVD<Eigen::Matrix2f> svd(St, Eigen::ComputeFullU | Eigen::ComputeFullV);
-            Lt = svd.matrixU() * svd.matrixV().transpose();
-        }
-        int oppose(int local_idx_i, int local_idx_j)
-        {
-            return 0 + 1 + 2 - local_idx_i - local_idx_j;
-        }
-        double energy()
-        {
-            double result = 0;
-            for (int i = 0; i < 3; i++) {
-                int j = (i + 1) % 3;
-                auto uij_om = texcoord[i] - texcoord[j];
-                auto xij_om = coord[i] - coord[j];
-                auto uij_eigen = Eigen::Vector2f(uij_om[0], uij_om[1]);
-                auto xij_eigen = Eigen::Vector2f(xij_om[0], xij_om[1]);
-                result += (uij_eigen - Lt * xij_eigen).squaredNorm();
-            }
-            return result / 2;
-        }
-    };
     std::vector<TriangleARAP> triangle_maps;
-
-    double total_energy()
-    {
-        double result = 0.0;
-        for (auto face : mesh->all_faces()) 
-        {
-            result += triangle_maps[face.idx()].energy();
-        }
-        return result;
-    }
     void local_phase()
     {
         for (auto face : mesh->all_faces()) 
@@ -281,8 +184,96 @@ class ParameterizeARAP
             texcoords[i] = { texcoord_eigen[0], texcoord_eigen[1] };
         }
     }
+   
+   public:
+    ParameterizeARAP(
+        std::shared_ptr<USTC_CG::PolyMesh>& mesh,
+        pxr::VtArray<pxr::GfVec2f> texcoords,
+        int iterate_number, bool compress = true)
+        : mesh(mesh),
+          texcoords(texcoords),
+          iterate_number(iterate_number),
+          compress(compress)
+    {
+        triangle_maps.resize(mesh->n_faces());
+        for (auto face : mesh->all_faces()) {
+            triangle_maps[face.idx()] = TriangleARAP(face, mesh, texcoords);
+        }
 
-public:
+        fixed_point1 = 0;
+        fixed_point2 = 0;
+        double min1 = FLT_MAX, min2 = FLT_MAX;
+        for (auto vertex : mesh->vertices()) {
+            int idx = vertex.idx();
+            auto texcoord = texcoords[idx];
+            double len1 = texcoord[0] * texcoord[0] + texcoord[1] * texcoord[1];
+            double len2 =
+                (1 - texcoord[0]) * (1 - texcoord[0]) + (1 - texcoord[1]) * (1 - texcoord[1]);
+            if (len1 < min1 && len1 > 0.1) {
+                min1 = len1;
+                fixed_point1 = idx;
+            }
+            if (len2 < min2 && len2 > 0.1) {
+                min2 = len2;
+                fixed_point2 = idx;
+            }
+        }
+        
+        // Precalculate Matrix
+        matrix_ = Eigen::SparseMatrix<float>(mesh->n_vertices(), mesh->n_vertices());
+
+        std::vector<Eigen::Triplet<float>> tripletList;
+
+        int size = mesh->n_vertices();
+        tripletList.reserve(size);
+        tripletList.push_back({ fixed_point1, fixed_point1, 1 });
+
+        for (auto vi : mesh->vertices()) {
+            int idx_i = vi.idx();
+
+            if (idx_i == fixed_point1)
+                continue;
+
+            float weight_sum = 0;
+
+            for (auto outedge : vi.outgoing_halfedges_ccw()) {
+                auto vj = outedge.to();
+                int idx_j = vj.idx();
+
+                float cot_weight = 0;
+                if (!outedge.is_boundary()) {
+                    auto& tri = triangle_maps[outedge.face().idx()];
+                    int loc_i = tri.index(idx_i), loc_j = tri.index(idx_j);
+                    auto cot = tri.cot(tri.oppose(loc_i, loc_j));
+                    cot_weight += cot;
+                }
+                if (!outedge.opp().is_boundary()) {
+                    auto& tri = triangle_maps[outedge.opp().face().idx()];
+                    int loc_i = tri.index(idx_i), loc_j = tri.index(idx_j);
+                    auto cot = tri.cot(tri.oppose(loc_i, loc_j));
+                    cot_weight += cot;
+                }
+                weight_sum += cot_weight;
+                if (idx_j != fixed_point1)
+                    tripletList.push_back({ idx_i, idx_j, -cot_weight });
+            }
+            tripletList.push_back({ idx_i, idx_i, weight_sum });
+        }
+
+        matrix_.setFromTriplets(tripletList.begin(), tripletList.end());
+        matrix_.makeCompressed();
+
+        solver_.compute(matrix_);
+	}
+    double total_energy()
+    {
+        double result = 0.0;
+        for (auto face : mesh->all_faces()) 
+        {
+            result += triangle_maps[face.idx()].energy();
+        }
+        return result;
+    }
     decltype(texcoords) compute(bool output = true)
     {
         if (iterate_number > 0) {
@@ -330,9 +321,7 @@ static void node_arap_exec(ExeParams params)
     auto mesh = operand_to_openmesh(&input);
 
     auto parameterizer = new ParameterizeARAP(mesh, texcoords, iterate_number);
-
     pxr::VtArray<pxr::GfVec2f> uv_result = parameterizer->compute();
-
     delete parameterizer; 
 
     params.set_output("OutputUV", uv_result);

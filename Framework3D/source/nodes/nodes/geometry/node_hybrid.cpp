@@ -11,6 +11,115 @@
 
 namespace USTC_CG::node_hybrid {
 
+struct TriangleHybrid
+{
+	Eigen::Matrix2f Lt = Eigen::Matrix2f::Identity();
+	double lambda = 0;
+	double a = 1, b = 0;
+	int idx_mesh[3] = { -1, -1, -1 };
+	Eigen::Vector2f coord[3] = { { 0, 0 }, { 0, 0 }, { 0, 0 } };
+	Eigen::Vector2f texcoord[3] = { { 0, 0 }, { 0, 0 }, { 0, 0 } };
+	TriangleHybrid()
+	{
+	}
+	TriangleHybrid(
+		OpenMesh::SmartFaceHandle& face,
+		const std::shared_ptr<USTC_CG::PolyMesh>& mesh,
+		const pxr::VtArray<pxr::GfVec2f>& texcoords,
+		double lambda)
+		: lambda(lambda)
+	{
+		double len[3];
+		int i = 0;
+		for (auto vh : mesh->fv_cw_range(face)) {
+			idx_mesh[i] = vh.idx();
+			i++;
+		}
+		for (int i = 0; i < 3; i++) {
+			int j = (i + 1) % 3;
+			int k = (i + 2) % 3;
+			auto p1 = mesh->point(mesh->vertex_handle(idx_mesh[j]));
+			auto p2 = mesh->point(mesh->vertex_handle(idx_mesh[k]));
+			len[i] = (p1 - p2).length();
+		}
+		double cos0 = (len[1] * len[1] + len[2] * len[2] - len[0] * len[0]) / (2 * len[1] * len[2]);
+		coord[0] = Eigen::Vector2f(0, 0);
+		coord[1] = Eigen::Vector2f(len[2], 0);
+		coord[2] = Eigen::Vector2f(len[1] * cos0, len[1] * sqrt(1 - cos0 * cos0));
+		update_texcoords(texcoords);
+	}
+	int index(int mesh_idx)
+	{
+		for (int i = 0; i < 3; i++) {
+			if (idx_mesh[i] == mesh_idx)
+				return i;
+		}
+		return -1;
+	}
+	double cot(int local_idx)
+	{
+		Eigen::Vector2f p1 = coord[(local_idx + 1) % 3] - coord[local_idx];
+		Eigen::Vector2f p2 = coord[(local_idx + 2) % 3] - coord[local_idx];
+		return p1.dot(p2) / abs(p1[0] * p2[1] - p1[1] * p2[0]);
+	}
+	void update_texcoords(const pxr::VtArray<pxr::GfVec2f>& texcoords)
+	{
+		for (int i = 0; i < 3; i++)
+			texcoord[i] = { texcoords[idx_mesh[i]][0], texcoords[idx_mesh[i]][1] };
+	}
+	void update_Lt()
+	{
+		double c1 = 0, c2 = 0, c3 = 0;
+		Eigen::Matrix2f St = Eigen::Matrix2f::Zero();
+		for (int i = 0; i < 3; i++) {
+			int j = (i + 1) % 3;
+			int k = (i + 2) % 3;
+			auto du = texcoord[i] - texcoord[j];
+			auto dv = coord[i] - coord[j];
+			c1 += cot(k) * (dv.x() * dv.x() + dv.y() * dv.y()); 
+			c2 += cot(k) * (du.x() * dv.x() + du.y() * dv.y());
+			c3 += cot(k) * (du.x() * dv.y() - du.y() * dv.x());
+		}
+		if (lambda == 0)
+		{
+			a = c2 / c1;
+			b = c3 / c1;
+		}
+		else {
+			double A = 2 * lambda * (c2 * c2 + c3 * c3) / c2 / c2;
+			double B = c1 - 2 * lambda;
+			double C = -c2;
+			// A * a**3 + B * a + C = 0
+			// Newton Iteration
+			a = c2 / sqrt(c2 * c2 + c3 * c3);
+			for (int i = 0; i < 10; i++)
+				a = a - (A * a * a * a + B * a + C) / (3 * A * a * a + B);
+			b = c3 * a / c2;
+		}
+		Lt = Eigen::Matrix2f();
+		Lt << a, b, -b, a;
+	}
+	int oppose(int local_idx_i, int local_idx_j)
+	{
+		return 0 + 1 + 2 - local_idx_i - local_idx_j;
+	}
+	double energy()
+	{
+		double result = 0;
+		for (int i = 0; i < 3; i++) {
+			int j = (i + 1) % 3;
+			int k = (i + 2) % 3;
+			auto uij_om = texcoord[i] - texcoord[j];
+			auto xij_om = coord[i] - coord[j];
+			auto uij_eigen = Eigen::Vector2f(uij_om[0], uij_om[1]);
+			auto xij_eigen = Eigen::Vector2f(xij_om[0], xij_om[1]);
+			result += cot(k) * (uij_eigen - Lt * xij_eigen).squaredNorm();
+		}
+		result += lambda * (a * a + b * b - 1) * (a * a + b * b - 1);
+		return result / 2;
+	}
+};
+
 class ParameterizeHybrid
 {
    private:
@@ -22,6 +131,7 @@ class ParameterizeHybrid
     float lambda = 0;
     Eigen::SimplicialCholesky<Eigen::SparseMatrix<float>> solver_;
     Eigen::SparseMatrix<float> matrix_;
+    std::vector<TriangleHybrid> triangle_maps;
    
    public:
     ParameterizeHybrid(
@@ -59,7 +169,6 @@ class ParameterizeHybrid
                 fixed_point2 = idx;
             }
         }
-        
         
         // Precalculate Matrix
         matrix_ = Eigen::SparseMatrix<float>(mesh->n_vertices(), mesh->n_vertices());
@@ -106,123 +215,7 @@ class ParameterizeHybrid
         matrix_.makeCompressed();
 
         solver_.compute(matrix_);
-        if (solver_.info() != Eigen::Success) {
-            std::cout << "LU Fail" << std::endl;
-            iterate_number = -1;
-        }
 	}
-
-   private:
-    struct TriangleHybrid
-    {
-        Eigen::Matrix2f Lt = Eigen::Matrix2f::Identity();
-        double lambda;
-        double a = 1, b = 0;
-        int idx_mesh[3] = { -1, -1, -1 };
-        Eigen::Vector2f coord[3] = { { 0, 0 }, { 0, 0 }, { 0, 0 } };
-        Eigen::Vector2f texcoord[3] = { { 0, 0 }, { 0, 0 }, { 0, 0 } };
-        TriangleHybrid()
-        {
-        }
-        TriangleHybrid(
-            OpenMesh::SmartFaceHandle& face,
-            const std::shared_ptr<USTC_CG::PolyMesh>& mesh,
-            const pxr::VtArray<pxr::GfVec2f>& texcoords,
-            double lambda)
-            : lambda(lambda)
-        {
-            double len[3];
-		    int i = 0;
-            for (auto vh : mesh->fv_cw_range(face)) {
-			    idx_mesh[i] = vh.idx();
-			    i++;
-		    }
-            for (int i = 0; i < 3; i++) {
-			    int j = (i + 1) % 3;
-			    int k = (i + 2) % 3;
-			    auto p1 = mesh->point(mesh->vertex_handle(idx_mesh[j]));
-			    auto p2 = mesh->point(mesh->vertex_handle(idx_mesh[k]));
-			    len[i] = (p1 - p2).length();
-		    }
-            double cos0 = (len[1] * len[1] + len[2] * len[2] - len[0] * len[0]) / (2 * len[1] * len[2]);
-            coord[0] = Eigen::Vector2f(0, 0);
-		    coord[1] = Eigen::Vector2f(len[2], 0);
-            coord[2] = Eigen::Vector2f(len[1] * cos0, len[1] * sqrt(1 - cos0 * cos0));
-            update_texcoords(texcoords);
-        }
-        int index(int mesh_idx)
-        {
-            for (int i = 0; i < 3; i++) {
-                if (idx_mesh[i] == mesh_idx)
-                    return i;
-            }
-            return -1;
-        }
-        double cot(int local_idx)
-        {
-            Eigen::Vector2f p1 = coord[(local_idx + 1) % 3] - coord[local_idx];
-            Eigen::Vector2f p2 = coord[(local_idx + 2) % 3] - coord[local_idx];
-            return p1.dot(p2) / abs(p1[0] * p2[1] - p1[1] * p2[0]);
-        }
-        void update_texcoords(const pxr::VtArray<pxr::GfVec2f>& texcoords)
-        {
-            for (int i = 0; i < 3; i++)
-                texcoord[i] = { texcoords[idx_mesh[i]][0], texcoords[idx_mesh[i]][1] };
-        }
-        void update_Lt()
-        {
-            double c1 = 0, c2 = 0, c3 = 0;
-            Eigen::Matrix2f St = Eigen::Matrix2f::Zero();
-            for (int i = 0; i < 3; i++) {
-                int j = (i + 1) % 3;
-                int k = (i + 2) % 3;
-                auto du = texcoord[i] - texcoord[j];
-                auto dv = coord[i] - coord[j];
-                c1 += cot(k) * (dv.x() * dv.x() + dv.y() * dv.y()); 
-                c2 += cot(k) * (du.x() * dv.x() + du.y() * dv.y());
-                c3 += cot(k) * (du.x() * dv.y() - du.y() * dv.x());
-            }
-            if (lambda == 0)
-            {
-                a = c2 / c1;
-                b = c3 / c1;
-            }
-            else {
-                double A = 2 * lambda * (c2 * c2 + c3 * c3) / c2 / c2;
-                double B = c1 - 2 * lambda;
-                double C = -c2;
-                // A * a**3 + B * a + C = 0
-                // Newton Iteration
-                a = c2 / sqrt(c2 * c2 + c3 * c3);
-                for (int i = 0; i < 100; i++)
-                    a = a - (A * a * a * a + B * a + C) / (3 * A * a * a + B);
-                b = c3 * a / c2;
-            }
-            Lt = Eigen::Matrix2f();
-            Lt << a, b, -b, a;
-        }
-        int oppose(int local_idx_i, int local_idx_j)
-        {
-            return 0 + 1 + 2 - local_idx_i - local_idx_j;
-        }
-        double energy()
-        {
-            double result = 0;
-            for (int i = 0; i < 3; i++) {
-                int j = (i + 1) % 3;
-                int k = (i + 2) % 3;
-                auto uij_om = texcoord[i] - texcoord[j];
-                auto xij_om = coord[i] - coord[j];
-                auto uij_eigen = Eigen::Vector2f(uij_om[0], uij_om[1]);
-                auto xij_eigen = Eigen::Vector2f(xij_om[0], xij_om[1]);
-                result += cot(k) * (uij_eigen - Lt * xij_eigen).squaredNorm();
-            }
-            result += lambda * (a * a + b * b - 1) * (a * a + b * b - 1);
-            return result / 2;
-        }
-    };
-    std::vector<TriangleHybrid> triangle_maps;
-
     double total_energy()
     {
         double result = 0.0;
@@ -312,8 +305,6 @@ class ParameterizeHybrid
             texcoords[i] = { texcoord_eigen[0], texcoord_eigen[1] };
         }
     }
-
-public:
     decltype(texcoords) compute(bool output = true)
     {
         if (iterate_number > 0) {
@@ -335,7 +326,7 @@ public:
                 ymin = std::min(ymin, texcoords[i][1]);
                 ymax = std::max(ymax, texcoords[i][1]);
             }
-            for (int i = 0; i < mesh->n_vertices(); i++) {
+            for  (int i = 0; i < mesh->n_vertices(); i++) {
                 texcoords[i][0] -= xmin;
                 texcoords[i][1] -= ymin;
                 texcoords[i] /= std::max(xmax - xmin, ymax - ymin);
@@ -359,9 +350,7 @@ static void node_hybrid_exec(ExeParams params)
     auto texcoords = params.get_input<pxr::VtArray<pxr::GfVec2f>>("Initial Guess");
     int iterate_number = params.get_input<int>("Iterate Number");
     float hybrid_factor = params.get_input<float>("Hybrid Factor") ;
-    // lambda = f / (1 - f)
-    // float lambda = hybrid_factor / (1 - hybrid_factor);
-    // float lambda = hybrid_factor;
+    //lambda = hybrid_factor ** 4;
     float lambda = pow(hybrid_factor, 4);
 
     auto mesh = operand_to_openmesh(&input);
