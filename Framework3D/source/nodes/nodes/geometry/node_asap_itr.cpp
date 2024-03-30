@@ -78,6 +78,7 @@ struct TriangleASAP_Itr
 		St = matU * matX.inverse();
 		Eigen::JacobiSVD<Eigen::Matrix2f> svd(St, Eigen::ComputeFullU | Eigen::ComputeFullV);
 		float singular_avg = (svd.singularValues()[0] + svd.singularValues()[1]) / 2;
+        // float singular_avg = sqrt(svd.singularValues()[0] * svd.singularValues()[1]);
 		Lt = svd.matrixU() * (Eigen::Matrix2f::Identity() * singular_avg) * svd.matrixV().transpose();
 	}
 	int oppose(int local_idx_i, int local_idx_j)
@@ -179,6 +180,7 @@ class ParameterASAP_Iteration
         auto vdest = (fixed_point2_coord - fixed_point1_coord).normalized();
         auto zrotate = Eigen::Vector2f(
             vdest[0] * vsrc[0] + vdest[1] * vsrc[1], -vdest[0] * vsrc[1] + vdest[1] * vsrc[0]);
+        float scale = (fixed_point2_coord - fixed_point1_coord).norm() / (fixed_point2_coord_upd - fixed_point1_coord).norm();
 
         for (int i = 0; i < size; i++)
         {
@@ -186,7 +188,7 @@ class ParameterASAP_Iteration
             auto relate_coord_rotated = Eigen::Vector2f(
                 relate_coord[0] * zrotate[0] - relate_coord[1] * zrotate[1],
                 relate_coord[0] * zrotate[1] + relate_coord[1] * zrotate[0]);
-            auto texcoord_eigen = fixed_point1_coord + relate_coord_rotated;
+            auto texcoord_eigen = fixed_point1_coord + relate_coord_rotated * scale;
             texcoords[i] = { texcoord_eigen[0], texcoord_eigen[1] };
         }
     }

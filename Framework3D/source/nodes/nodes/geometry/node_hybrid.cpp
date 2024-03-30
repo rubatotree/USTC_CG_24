@@ -70,7 +70,6 @@ struct TriangleHybrid
 	void update_Lt()
 	{
 		double c1 = 0, c2 = 0, c3 = 0;
-		Eigen::Matrix2f St = Eigen::Matrix2f::Zero();
 		for (int i = 0; i < 3; i++) {
 			int j = (i + 1) % 3;
 			int k = (i + 2) % 3;
@@ -341,7 +340,7 @@ static void node_hybrid_declare(NodeDeclarationBuilder& b)
     b.add_input<decl::Geometry>("Input");
     b.add_input<decl::Float2Buffer>("Initial Guess");
     b.add_input<decl::Int>("Iterate Number").min(0).max(30).default_val(10);
-    b.add_input<decl::Float>("Hybrid Factor").min(0).max(1).default_val(0.1);
+    b.add_input<decl::Float>("Lambda").min(0).max(1).default_val(0.1);
     b.add_output<decl::Float2Buffer>("OutputUV");
 }
 static void node_hybrid_exec(ExeParams params)
@@ -349,9 +348,9 @@ static void node_hybrid_exec(ExeParams params)
     auto input = params.get_input<GOperandBase>("Input");
     auto texcoords = params.get_input<pxr::VtArray<pxr::GfVec2f>>("Initial Guess");
     int iterate_number = params.get_input<int>("Iterate Number");
-    float hybrid_factor = params.get_input<float>("Hybrid Factor") ;
-    //lambda = hybrid_factor ** 4;
-    float lambda = pow(hybrid_factor, 4);
+    float hybrid_factor = params.get_input<float>("Lambda") ;
+    //lambda = hybrid_factor
+    float lambda = hybrid_factor;
 
     auto mesh = operand_to_openmesh(&input);
 
