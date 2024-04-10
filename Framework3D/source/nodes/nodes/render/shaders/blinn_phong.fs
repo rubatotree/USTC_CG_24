@@ -28,6 +28,7 @@ uniform sampler2DArray shadow_maps;
 uniform sampler2D position;
 
 // uniform float alpha;
+uniform vec3 camPos;
 
 uniform int light_count;
 
@@ -38,7 +39,7 @@ void main()
     vec2 uv = gl_FragCoord.xy / iResolution;
     vec3 frag_pos = texture(position, uv).xyz;
 
-    vec2 metalnessRoughness = texture(metallicRoughnessSampler,uv).xy;
+    vec4 metalnessRoughness = texture2D(metallicRoughnessSampler,uv);
     float metal = metalnessRoughness.x;
     float roughness = metalnessRoughness.y;
 

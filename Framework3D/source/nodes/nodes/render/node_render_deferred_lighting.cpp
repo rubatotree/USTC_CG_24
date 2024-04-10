@@ -56,6 +56,8 @@ static void node_exec(ExeParams params)
 
     auto shadow_maps = params.get_input<TextureHandle>("Shadow Maps");
 
+    auto cameras = params.get_input<CameraArray>("Camera");
+
     Hd_USTC_CG_Camera* free_camera;
 
     for (auto camera : cameras) {
@@ -121,6 +123,9 @@ static void node_exec(ExeParams params)
     glActiveTexture(GL_TEXTURE4);
     glBindTexture(GL_TEXTURE_2D, position_texture->texture_id);
 
+    GfVec3f camPos = GfMatrix4f(free_camera->GetTransform()).ExtractTranslation();
+    shader->shader.setVec3("camPos", camPos);
+
     GLuint lightBuffer;
     glGenBuffers(1, &lightBuffer);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, lightBuffer);
@@ -142,7 +147,10 @@ static void node_exec(ExeParams params)
             frustum.SetPerspective(120.f, 1.0, 0.1, 100.f);
             auto light_projection_mat = frustum.ComputeProjectionMatrix();
             // light_vector.emplace_back(light_projection_mat, light_view_mat, position3, 0.f, diffuse3, i);
-            light_vector.emplace_back(GfMatrix4f(light_projection_mat), GfMatrix4f(light_view_mat), position3, 0.f, diffuse3, i);
+
+            auto radius = lights[i]->Get(HdLightTokens->radius).Get<float>();
+            
+            light_vector.emplace_back(GfMatrix4f(light_projection_mat), GfMatrix4f(light_view_mat), position3, radius, diffuse3, i);
 
             // You can add directional light here, and also the corresponding shadow map calculation
             // part.
