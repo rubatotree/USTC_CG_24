@@ -8,3 +8,5 @@ third_party/
 *.png
 _deps/
 *.jpg
+*.usda
+*.lnk

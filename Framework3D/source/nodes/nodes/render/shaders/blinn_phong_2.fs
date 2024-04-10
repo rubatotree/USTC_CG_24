@@ -33,6 +33,17 @@ uniform int light_count;
 
 layout(location = 0) out vec4 Color;
 
+
+float ShadowCalc(vec4 frag_pos_light_space, int light_index)
+{
+    vec3 proj_coords = frag_pos_light_space.xyz / frag_pos_light_space.w;
+    proj_coords = proj_coords * 0.5 + 0.5;
+    float closest_depth = texture(shadow_maps, vec3(proj_coords.xy, lights[light_index].shadow_map_id)).r;
+    float current_depth = proj_coords.z;
+    float shadow = current_depth > closest_depth ? 1.0 : 0.0;
+    return shadow;
+}
+
 void main() 
 {
     vec2 uv = gl_FragCoord.xy / iResolution;
@@ -42,19 +53,14 @@ void main()
     float metal = metalnessRoughness.x;
     float roughness = metalnessRoughness.y;
 
-    // vec3 norm = normalize(texture(normalMapSampler, uv).xyz - 0.5);
-    vec3 norm = texture(normalMapSampler, uv).xyz - 0.5;
+    vec3 norm = normalize(texture(normalMapSampler, uv).xyz - 0.5);
 
     vec3 diff_color = texture(diffuseColorSampler, uv).rgb;
     vec3 result = vec3(0.0);
-    // result = diff_color;
 
     for(int i = 0; i < light_count; i++) 
     {
-        float shadow_map_value = texture(shadow_maps, vec3(uv, lights[i].shadow_map_id)).x;
-
-        // Visualization of shadow map
-        // Color += vec4(shadow_map_value, 0, 0, 0);
+        vec4 frag_pos_light_space = lights[i].light_projection * lights[i].light_view * vec4(frag_pos, 1.0);
 
         // HW6_TODO: first comment the line above ("Color +=..."). That's for quick Visualization.
         // You should first do the Blinn Phong shading here. You can use roughness to modify alpha. Or you can pass in an alpha value through the uniform above.
@@ -68,15 +74,14 @@ void main()
         vec3 refloactDir = reflect(-lightDir, norm);
         float spec = pow(max(dot(viewDir, refloactDir), 0.0), 32.0);
 
-        result += ambient + diffuse + spec;
+        float shadow = ShadowCalc(frag_pos_light_space, i);
+        result += ambient + (1.0 - shadow) * (diffuse + spec);
 
 
         // After finishing Blinn Phong shading, you can do shadow mapping with the help of the provided shadow_map_value. You will need to refer to the node, node_render_shadow_mapping.cpp, for the light matrices definition. Then you need to fill the mat4 light_projection; mat4 light_view; with similar approach that we fill position and color.
         // For shadow mapping, as is discussed in the course, you should compare the value "position depth from the light's view" against the "blocking object's depth.", then you can decide whether it's shadowed.
 
         // PCSS is also applied here.
-
     }
-    // Color = vec4(result, 1.0);
-    Color = vec4(abs((texture(normalMapSampler, uv).xyz - 0.5f)), 1.0);
+    Color = vec4(result, 1.0);
 }

@@ -73,7 +73,7 @@ static void node_exec(ExeParams params)
 
             // HW6: The matrices for lights information is here! Current value is set that "it just works". However, you should try to modify the values to see how it affects the performance of the shadow maps.
             GfFrustum frustum;
-            frustum.SetPerspective(120.f, 1.0, 1, 25.f);
+            frustum.SetPerspective(120.f, 1.0, 0.1, 100.0f);
             auto light_projection_mat = frustum.ComputeProjectionMatrix();
             shader_handle->shader.setMat4("light_view", light_view_mat);
             shader_handle->shader.setMat4("light_projection", GfMatrix4f(light_projection_mat));

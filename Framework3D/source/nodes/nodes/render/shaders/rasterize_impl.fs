@@ -26,11 +26,12 @@ void main() {
     depth = clipPos.z / clipPos.w;
     texcoords = vTexcoord;
 
-    diffuseColor = texture2D(diffuseColorSampler, vTexcoord).xyz;
-    metallicRoughness = texture2D(metallicRoughnessSampler, vTexcoord).yz;
+    diffuseColor = texture(diffuseColorSampler, vTexcoord).xyz;
+    metallicRoughness = texture(metallicRoughnessSampler, vTexcoord).yz;
 
-    vec3 normalmap_value = texture2D(normalMapSampler, vTexcoord).xyz;
+    vec3 normalmap_value = texture(normalMapSampler, vTexcoord).xyz;
     normal = normalize(vertexNormal);
 
     // HW6_TODO: Apply normal map here. Use normal textures to modify vertex normals.
+    
 }

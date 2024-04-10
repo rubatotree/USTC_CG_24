@@ -7,6 +7,7 @@
 #include "Nodes/socket_types/basic_socket_types.hpp"
 #include "camera.h"
 #include "light.h"
+#include "pxr/base/gf/frustum.h"
 #include "pxr/imaging/glf/simpleLight.h"
 #include "pxr/imaging/hd/tokens.h"
 #include "render_node_base.h"
@@ -18,6 +19,7 @@ namespace USTC_CG::node_deferred_lighting {
 
 static void node_declare(NodeDeclarationBuilder& b)
 {
+    b.add_input<decl::Camera>("Camera");
     b.add_input<decl::Lights>("Lights");
 
     b.add_input<decl::Texture>("Position");
@@ -43,6 +45,7 @@ static void node_exec(ExeParams params)
 {
     // Fetch all the information
 
+    auto cameras = params.get_input<CameraArray>("Camera");
     auto lights = params.get_input<LightArray>("Lights");
 
     auto position_texture = params.get_input<TextureHandle>("Position");
@@ -52,6 +55,15 @@ static void node_exec(ExeParams params)
     auto normal_texture = params.get_input<TextureHandle>("Normal");
 
     auto shadow_maps = params.get_input<TextureHandle>("Shadow Maps");
+
+    Hd_USTC_CG_Camera* free_camera;
+
+    for (auto camera : cameras) {
+        if (camera->GetId() != SdfPath::EmptyPath()) {
+            free_camera = camera;
+            break;
+        }
+    }
 
     // Creating output textures.
     auto size = position_texture->desc.size;
@@ -83,6 +95,11 @@ static void node_exec(ExeParams params)
     glClear(GL_COLOR_BUFFER_BIT);
     shader->shader.use();
     shader->shader.setVec2("iResolution", size);
+
+    auto camera_mat = free_camera->GetTransform();
+    GfVec3f camera_pos = { (float)camera_mat[3][0], (float)camera_mat[3][1],(float) camera_mat[3][2] };
+
+    shader->shader.setVec3("iCameraPos", camera_pos);
 
     shader->shader.setInt("diffuseColorSampler", 0);
     glActiveTexture(GL_TEXTURE0);
@@ -117,9 +134,18 @@ static void node_exec(ExeParams params)
             pxr::GfVec3f diffuse3(diffuse4[0], diffuse4[1], diffuse4[2]);
             auto position4 = light_params.GetPosition();
             pxr::GfVec3f position3(position4[0], position4[1], position4[2]);
-            light_vector.emplace_back(GfMatrix4f(), GfMatrix4f(), position3, 0.f, diffuse3, i);
 
-            // You can add directional light here, and also the corresponding shadow map calculation part.
+            // Copied from node_render_shadow_mapping.cpp
+            auto light_view_mat =
+                GfMatrix4f().SetLookAt(position3, GfVec3f(0, 0, 0), GfVec3f(0, 0, 1));
+            GfFrustum frustum;
+            frustum.SetPerspective(120.f, 1.0, 0.1, 100.f);
+            auto light_projection_mat = frustum.ComputeProjectionMatrix();
+            // light_vector.emplace_back(light_projection_mat, light_view_mat, position3, 0.f, diffuse3, i);
+            light_vector.emplace_back(GfMatrix4f(light_projection_mat), GfMatrix4f(light_view_mat), position3, 0.f, diffuse3, i);
+
+            // You can add directional light here, and also the corresponding shadow map calculation
+            // part.
         }
     }
 
