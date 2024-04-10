@@ -9,15 +9,21 @@ aTexcoord;
 out vec3 vertexPosition;
 out vec3 vertexNormal;
 out vec2 vTexcoord;
+// out mat3 TBN;
 
 uniform mat4 model;
 uniform mat4 view;
 uniform mat4 projection;
 
-void main() {
-gl_Position = projection * view * model * vec4(aPos, 1.0);
-vec4 vPosition = model * vec4(aPos, 1.0);
-vertexPosition = vPosition.xyz / vPosition.w;
-vertexNormal = (inverse(transpose(mat3(model))) * aNormal);
-vTexcoord = 1.0 - aTexcoord.data[gl_VertexID];
+void main() 
+{
+    gl_Position = projection * view * model * vec4(aPos, 1.0);
+    vec4 vPosition = model * vec4(aPos, 1.0);
+    vertexPosition = vPosition.xyz / vPosition.w;
+    vertexNormal = (inverse(transpose(mat3(model))) * aNormal);
+    vTexcoord = 1.0 - aTexcoord.data[gl_VertexID];
+
+    // mat3 normalMatrix = transpose(inverse(mat3(model)));
+    // vec3 N = normalize(normalMatrix * aNormal);
+    // vec3 T = normalize(normalMatrix * vec3(1.0, 0.0, 0.0));
 }

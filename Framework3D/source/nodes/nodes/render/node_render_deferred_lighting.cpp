@@ -1,5 +1,4 @@
 // #define __GNUC__
-
 #include "NODES_FILES_DIR.h"
 #include "Nodes/node.hpp"
 #include "Nodes/node_declare.hpp"
@@ -21,13 +20,11 @@ static void node_declare(NodeDeclarationBuilder& b)
 {
     b.add_input<decl::Camera>("Camera");
     b.add_input<decl::Lights>("Lights");
-
     b.add_input<decl::Texture>("Position");
     b.add_input<decl::Texture>("diffuseColor");
     b.add_input<decl::Texture>("MetallicRoughness");
     b.add_input<decl::Texture>("Normal");
     b.add_input<decl::Texture>("Shadow Maps");
-
     b.add_input<decl::String>("Lighting Shader").default_val("shaders/blinn_phong.fs");
     b.add_output<decl::Texture>("Color");
 }
@@ -56,10 +53,8 @@ static void node_exec(ExeParams params)
 
     auto shadow_maps = params.get_input<TextureHandle>("Shadow Maps");
 
-    auto cameras = params.get_input<CameraArray>("Camera");
-
     Hd_USTC_CG_Camera* free_camera;
-
+    
     for (auto camera : cameras) {
         if (camera->GetId() != SdfPath::EmptyPath()) {
             free_camera = camera;

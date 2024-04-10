@@ -39,12 +39,11 @@ void main()
     vec2 uv = gl_FragCoord.xy / iResolution;
     vec3 frag_pos = texture(position, uv).xyz;
 
-    vec4 metalnessRoughness = texture2D(metallicRoughnessSampler,uv);
+    vec4 metalnessRoughness = texture(metallicRoughnessSampler,uv);
     float metal = metalnessRoughness.x;
     float roughness = metalnessRoughness.y;
 
-    // vec3 norm = normalize(texture(normalMapSampler, uv).xyz - 0.5);
-    vec3 norm = texture(normalMapSampler, uv).xyz - 0.5;
+    vec3 norm = normalize(texture(normalMapSampler, uv).xyz);
 
     vec3 diff_color = texture(diffuseColorSampler, uv).rgb;
     vec3 result = vec3(0.0);
@@ -78,6 +77,6 @@ void main()
         // PCSS is also applied here.
 
     }
-    // Color = vec4(result, 1.0);
-    Color = vec4(abs((texture(normalMapSampler, uv).xyz - 0.5f)), 1.0);
+    Color = vec4(result, 1.0);
+    Color = vec4(norm, 1.0);
 }
