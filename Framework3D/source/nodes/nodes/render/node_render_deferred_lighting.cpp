@@ -139,7 +139,7 @@ static void node_exec(ExeParams params)
             auto light_view_mat =
                 GfMatrix4f().SetLookAt(position3, GfVec3f(0, 0, 0), GfVec3f(0, 0, 1));
             GfFrustum frustum;
-            frustum.SetPerspective(120.f, 1.0, 0.1, 100.f);
+            frustum.SetPerspective(120.f, 1.0, 1, 25.f);
             auto light_projection_mat = frustum.ComputeProjectionMatrix();
             // light_vector.emplace_back(light_projection_mat, light_view_mat, position3, 0.f, diffuse3, i);
 
