@@ -53,7 +53,7 @@ void main()
     float metal = metalnessRoughness.x;
     float roughness = metalnessRoughness.y;
 
-    vec3 norm = normalize(texture(normalMapSampler, uv).xyz - 0.5);
+    vec3 norm = normalize(texture(normalMapSampler, uv).xyz);
 
     vec3 diff_color = texture(diffuseColorSampler, uv).rgb;
     vec3 result = vec3(0.0);
