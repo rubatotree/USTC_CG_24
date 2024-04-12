@@ -65,11 +65,10 @@ void main()
         vec3 diffuse = lights[i].color * diff * diff_color;
 
         vec3 viewDir = normalize(iCameraPos - frag_pos);
-        vec3 refloactDir = reflect(-lightDir, norm);
-        float spec = pow(max(dot(viewDir, refloactDir), 0.0), 32.0);
+        vec3 reflectDir = reflect(-lightDir, norm);
+        float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32.0);
 
         result += ambient + diffuse + spec;
-
 
         // After finishing Blinn Phong shading, you can do shadow mapping with the help of the provided shadow_map_value. You will need to refer to the node, node_render_shadow_mapping.cpp, for the light matrices definition. Then you need to fill the mat4 light_projection; mat4 light_view; with similar approach that we fill position and color.
         // For shadow mapping, as is discussed in the course, you should compare the value "position depth from the light's view" against the "blocking object's depth.", then you can decide whether it's shadowed.
