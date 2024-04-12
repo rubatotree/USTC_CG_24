@@ -19,6 +19,13 @@ uniform sampler2D diffuseColorSampler;
 // because the scenes we provide is transformed from gltf
 uniform sampler2D normalMapSampler;
 uniform sampler2D metallicRoughnessSampler;
+bool isnan( float val )
+{
+  return ( val < 0.0 || 0.0 < val || val == 0.0 ) ? false : true;
+  // important: some nVidias failed to cope with version below.
+  // Probably wrong optimization.
+  /*return ( val <= 0.0 || 0.0 <= val ) ? false : true;*/
+}
 
 void main() {
     position = vertexPosition;
@@ -30,7 +37,8 @@ void main() {
     metallicRoughness = texture(metallicRoughnessSampler, vTexcoord).yz;
 
     vec3 normalmap_value = texture(normalMapSampler, vTexcoord).xyz;
-    normal = normalize(vertexNormal);
+    vec3 norm = normalmap_value * 2.0 - 1.0;
+    normal = vertexNormal;
 
     // HW6_TODO: Apply normal map here. Use normal textures to modify vertex normals.
 
@@ -49,4 +57,8 @@ void main() {
     }
     tangent = normalize(tangent - dot(tangent, normal) * normal);
     vec3 bitangent = normalize(cross(tangent,normal));
+
+    mat3 TBN = mat3(tangent, bitangent, normal);
+
+    normal = normalize(TBN * norm);
 }
