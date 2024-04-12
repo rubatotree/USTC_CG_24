@@ -64,6 +64,7 @@ void main()
 
         // HW6_TODO: first comment the line above ("Color +=..."). That's for quick Visualization.
         // You should first do the Blinn Phong shading here. You can use roughness to modify alpha. Or you can pass in an alpha value through the uniform above.
+        float dist_sq = dot(frag_pos - lights[i].position, frag_pos - lights[i].position) * 0.05;
         vec3 ambient = lights[i].color * 0.1;
 
         vec3 lightDir = normalize(lights[i].position - frag_pos);
@@ -75,7 +76,7 @@ void main()
         float spec = pow(max(dot(viewDir, refloactDir), 0.0), 32.0);
 
         float shadow = ShadowCalc(frag_pos_light_space, i);
-        result += ambient + (1.0 - shadow) * (diffuse + spec);
+        result += (ambient + (1.0 - shadow) * (diffuse + spec)) * lights[i].radius / dist_sq;
 
 
         // After finishing Blinn Phong shading, you can do shadow mapping with the help of the provided shadow_map_value. You will need to refer to the node, node_render_shadow_mapping.cpp, for the light matrices definition. Then you need to fill the mat4 light_projection; mat4 light_view; with similar approach that we fill position and color.

@@ -34,6 +34,16 @@ uniform int light_count;
 
 layout(location = 0) out vec4 Color;
 
+// https://stackoverflow.com/questions/9446888/best-way-to-detect-nans-in-opengl-shaderms
+bool isnan( float val )
+{
+  return ( val < 0.0 || 0.0 < val || val == 0.0 ) ? false : true;
+  // important: some nVidias failed to cope with version below.
+  // Probably wrong optimization.
+  /*return ( val <= 0.0 || 0.0 <= val ) ? false : true;*/
+}
+
+
 void main() 
 {
     vec2 uv = gl_FragCoord.xy / iResolution;
@@ -44,10 +54,15 @@ void main()
     float roughness = metalnessRoughness.y;
 
     vec3 norm = normalize(texture(normalMapSampler, uv).xyz);
+    if(isnan(norm.x))
+    {
+        //background
+        Color = vec4(vec3(0.1), 1.0);
+        return;
+    }
 
     vec3 diff_color = texture(diffuseColorSampler, uv).rgb;
     vec3 result = vec3(0.0);
-    // result = diff_color;
 
     for(int i = 0; i < light_count; i++) 
     {
@@ -58,17 +73,19 @@ void main()
 
         // HW6_TODO: first comment the line above ("Color +=..."). That's for quick Visualization.
         // You should first do the Blinn Phong shading here. You can use roughness to modify alpha. Or you can pass in an alpha value through the uniform above.
-        vec3 ambient = lights[i].color * 0.1;
+        float dist_sq = dot(frag_pos - lights[i].position, frag_pos - lights[i].position);
 
         vec3 lightDir = normalize(lights[i].position - frag_pos);
+        vec3 viewDir = normalize(iCameraPos - frag_pos);
+        vec3 halfwayDir = normalize(lightDir + viewDir);
+        
+        vec3 ambient = lights[i].color * 0.1;
         float diff = max(dot(norm, lightDir), 0.0);
         vec3 diffuse = lights[i].color * diff * diff_color;
 
-        vec3 viewDir = normalize(iCameraPos - frag_pos);
-        vec3 reflectDir = reflect(-lightDir, norm);
-        float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32.0);
+        float spec = pow(max(dot(norm, halfwayDir), 0.0), 32.0);
 
-        result += ambient + diffuse + spec;
+        result += (ambient + diffuse + spec) * lights[i].radius / dist_sq;
 
         // After finishing Blinn Phong shading, you can do shadow mapping with the help of the provided shadow_map_value. You will need to refer to the node, node_render_shadow_mapping.cpp, for the light matrices definition. Then you need to fill the mat4 light_projection; mat4 light_view; with similar approach that we fill position and color.
         // For shadow mapping, as is discussed in the course, you should compare the value "position depth from the light's view" against the "blocking object's depth.", then you can decide whether it's shadowed.
@@ -76,5 +93,9 @@ void main()
         // PCSS is also applied here.
 
     }
-    Color = vec4(result, 1.0);
+    Color = vec4(result * 30.0, 1.0);
+    
+    // Gamma correction
+    float gamma = 2.2;
+    Color.rgb = pow(Color.rgb, vec3(1.0 / gamma));
 }
