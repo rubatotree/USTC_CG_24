@@ -136,11 +136,20 @@ static void node_exec(ExeParams params)
             pxr::GfVec3f position3(position4[0], position4[1], position4[2]);
 
             // Copied from node_render_shadow_mapping.cpp
-            auto light_view_mat =
-                GfMatrix4f().SetLookAt(position3, GfVec3f(0, 0, 0), GfVec3f(0, 0, 1));
-            GfFrustum frustum;
-            frustum.SetPerspective(120.f, 1.0, 1, 25.f);
-            auto light_projection_mat = frustum.ComputeProjectionMatrix();
+            GfMatrix4f light_view_mat;
+            GfMatrix4f light_projection_mat;
+
+            if (lights[i]->GetLightType() == HdPrimTypeTokens->sphereLight) {
+                GfFrustum frustum;
+                GfVec3f light_position = { light_params.GetPosition()[0],
+                                           light_params.GetPosition()[1],
+                                           light_params.GetPosition()[2] };
+
+                light_view_mat =
+                    GfMatrix4f().SetLookAt(light_position, GfVec3f(0, 0, 0), GfVec3f(0, 0, 1));
+                frustum.SetPerspective(135.f, 1.0, 1, 25.f);
+                light_projection_mat = GfMatrix4f(frustum.ComputeProjectionMatrix());
+            }
             // light_vector.emplace_back(light_projection_mat, light_view_mat, position3, 0.f, diffuse3, i);
 
             auto radius = lights[i]->Get(HdLightTokens->radius).Get<float>();

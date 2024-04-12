@@ -43,7 +43,6 @@ bool isnan( float val )
   /*return ( val <= 0.0 || 0.0 <= val ) ? false : true;*/
 }
 
-
 void main() 
 {
     vec2 uv = gl_FragCoord.xy / iResolution;
@@ -53,14 +52,14 @@ void main()
     float metal = metalnessRoughness.x;
     float roughness = metalnessRoughness.y;
 
-
     vec3 norm = normalize(texture(normalMapSampler, uv).xyz);
-    if(isnan(norm.x))
-    {
-        //background
-        Color = vec4(vec3(0.1), 1.0);
-        return;
-    }
+
+    // if(isnan(norm.x))
+    // {
+    //     //background
+    //     Color = vec4(vec3(0.1), 1.0);
+    //     return;
+    // }
 
     vec3 diff_color = texture(diffuseColorSampler, uv).rgb;
     vec3 result = vec3(0.0);
@@ -75,7 +74,6 @@ void main()
 
     for(int i = 0; i < light_count; i++) 
     {
-        float shadow_map_value = texture(shadow_maps, vec3(uv, lights[i].shadow_map_id)).x;
         float dist_sq = dot(frag_pos - lights[i].position, frag_pos - lights[i].position);
 
         vec3 lightDir = normalize(lights[i].position - frag_pos);

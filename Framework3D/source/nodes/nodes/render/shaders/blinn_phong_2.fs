@@ -34,14 +34,24 @@ uniform int light_count;
 layout(location = 0) out vec4 Color;
 
 
-float ShadowCalc(vec4 frag_pos_light_space, int light_index)
+float ShadowCalc(vec4 frag_pos_light_space, int light_index, float NdotL)
 {
+    const float bias = max(0.05 * (1.0 - NdotL), 0.005);
     vec3 proj_coords = frag_pos_light_space.xyz / frag_pos_light_space.w;
     proj_coords = proj_coords * 0.5 + 0.5;
     float closest_depth = texture(shadow_maps, vec3(proj_coords.xy, lights[light_index].shadow_map_id)).r;
-    float current_depth = proj_coords.z;
-    float shadow = current_depth > closest_depth ? 1.0 : 0.0;
+    float current_depth = frag_pos_light_space.z / frag_pos_light_space.w;
+    float shadow = current_depth - bias > closest_depth ? 1.0 : 0.0;
     return shadow;
+}
+
+// https://stackoverflow.com/questions/9446888/best-way-to-detect-nans-in-opengl-shaderms
+bool isnan( float val )
+{
+  return ( val < 0.0 || 0.0 < val || val == 0.0 ) ? false : true;
+  // important: some nVidias failed to cope with version below.
+  // Probably wrong optimization.
+  /*return ( val <= 0.0 || 0.0 <= val ) ? false : true;*/
 }
 
 void main() 
@@ -49,7 +59,7 @@ void main()
     vec2 uv = gl_FragCoord.xy / iResolution;
     vec3 frag_pos = texture(position, uv).xyz;
 
-    vec2 metalnessRoughness = texture(metallicRoughnessSampler,uv).xy;
+    vec4 metalnessRoughness = texture(metallicRoughnessSampler,uv);
     float metal = metalnessRoughness.x;
     float roughness = metalnessRoughness.y;
 
@@ -58,31 +68,41 @@ void main()
     vec3 diff_color = texture(diffuseColorSampler, uv).rgb;
     vec3 result = vec3(0.0);
 
+    //https://kcoley.github.io/glTF/extensions/2.0/Khronos/KHR_materials_pbrSpecularGlossiness/examples/convert-between-workflows/
+    const vec3 dielectricSpecular = vec3(0.04, 0.04, 0.04);
+    const float epsilon = 1e-6;
+    vec3 specular = mix(dielectricSpecular, diff_color, metal);
+    vec3 oneMinusSpecularStrength = 1.0 - specular; 
+    vec3 diffuse = diff_color * (1 - dielectricSpecular) * (1 - metal) / max(oneMinusSpecularStrength, epsilon);
+    float glossiness = 1 - roughness;
+
     for(int i = 0; i < light_count; i++) 
     {
-        vec4 frag_pos_light_space = lights[i].light_projection * lights[i].light_view * vec4(frag_pos, 1.0);
-
-        // HW6_TODO: first comment the line above ("Color +=..."). That's for quick Visualization.
-        // You should first do the Blinn Phong shading here. You can use roughness to modify alpha. Or you can pass in an alpha value through the uniform above.
-        float dist_sq = dot(frag_pos - lights[i].position, frag_pos - lights[i].position) * 0.05;
-        vec3 ambient = lights[i].color * 0.1;
+        float shadow_map_value = texture(shadow_maps, vec3(uv, lights[i].shadow_map_id)).x;
+        float dist_sq = dot(frag_pos - lights[i].position, frag_pos - lights[i].position);
+        vec4 frag_pos_light_space = lights[i].light_projection * lights[i].light_view * vec4(frag_pos, 1.0); 
 
         vec3 lightDir = normalize(lights[i].position - frag_pos);
-        float diff = max(dot(norm, lightDir), 0.0);
-        vec3 diffuse = lights[i].color * diff * diff_color;
-
         vec3 viewDir = normalize(iCameraPos - frag_pos);
-        vec3 refloactDir = reflect(-lightDir, norm);
-        float spec = pow(max(dot(viewDir, refloactDir), 0.0), 32.0);
+        vec3 halfwayDir = normalize(lightDir + viewDir);
+        float NdotL = max(dot(norm, lightDir), 0.0);
+        float NdotH = max(dot(norm, halfwayDir), 0.0);
+        
+        vec3 ambient = lights[i].color * 0.05 * diff_color;
+        vec3 diff = lights[i].color * NdotL * diffuse;
+        vec3 spec = specular * pow(NdotH, glossiness * 31.0 + 1.0);
 
-        float shadow = ShadowCalc(frag_pos_light_space, i);
-        result += (ambient + (1.0 - shadow) * (diffuse + spec)) * lights[i].radius / dist_sq;
+        float shadow = ShadowCalc(frag_pos_light_space, i, NdotL);
+        result += (ambient + (1.0 - shadow) * (diff + spec)) * lights[i].radius / dist_sq, 0.0;
 
+        vec3 proj_coords = frag_pos_light_space.xyz / frag_pos_light_space.w;
+        proj_coords = proj_coords * 0.5 + 0.5;
 
-        // After finishing Blinn Phong shading, you can do shadow mapping with the help of the provided shadow_map_value. You will need to refer to the node, node_render_shadow_mapping.cpp, for the light matrices definition. Then you need to fill the mat4 light_projection; mat4 light_view; with similar approach that we fill position and color.
-        // For shadow mapping, as is discussed in the course, you should compare the value "position depth from the light's view" against the "blocking object's depth.", then you can decide whether it's shadowed.
-
-        // PCSS is also applied here.
     }
-    Color = vec4(result, 1.0);
+    Color = vec4(result * 5.0, 1.0);
+    // Color = vec4(result, 1.0);
+    
+    // Gamma correction
+    float gamma = 2.2;
+    Color.rgb = pow(Color.rgb, vec3(1.0 / gamma));
 }
