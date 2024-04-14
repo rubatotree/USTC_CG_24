@@ -90,17 +90,12 @@ void main()
         
         vec3 ambient = lights[i].color * 0.05 * diff_color;
         vec3 diff = lights[i].color * NdotL * diffuse;
-        vec3 spec = specular * pow(NdotH, glossiness * 31.0 + 1.0);
+        vec3 spec = lights[i].color * specular * pow(NdotH, glossiness * 31.0 + 1.0);
 
         float shadow = ShadowCalc(frag_pos_light_space, i, NdotL);
-        result += (ambient + (1.0 - shadow) * (diff + spec)) * lights[i].radius / dist_sq, 0.0;
-
-        vec3 proj_coords = frag_pos_light_space.xyz / frag_pos_light_space.w;
-        proj_coords = proj_coords * 0.5 + 0.5;
-
+        result += (ambient + (1.0 - shadow) * (diff + spec)) / dist_sq;
     }
-    Color = vec4(result * 5.0, 1.0);
-    // Color = vec4(result, 1.0);
+    Color = vec4(result, 1.0);
     
     // Gamma correction
     float gamma = 2.2;

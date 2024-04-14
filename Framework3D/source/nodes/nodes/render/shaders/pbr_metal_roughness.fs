@@ -118,7 +118,7 @@ void main()
         result += (1 - metal) * diff_color * ambient / PI / dist_sq;
         result += (diffuse + spec) * lights[i].color * NdotL / dist_sq;
     }
-    Color = vec4(result * 30.0, 1.0);
+    Color = vec4(result, 1.0);
     
     // Gamma correction
     float gamma = 2.2;
