@@ -170,6 +170,7 @@ static void node_register()
     render_node_type_base(&ntype);
     ntype.node_execute = node_exec;
     ntype.declare = node_declare;
+
     nodeRegisterType(&ntype);
 }
 

@@ -12,7 +12,7 @@
 
 ![1713021344909](C:\Users\Admin\Documents\GitHub\USTC_CG_24\Homeworks\assets\1713021344909.png)
 
-## Blinn-Phong 着色模型
+## 1. Blinn-Phong 着色模型
 
 `blinn-phong.fs` 是实现了不含阴影映射的 Blinn-Phong 着色模型的 Shader。
 
@@ -174,7 +174,7 @@ Color.rgb = pow(Color.rgb, vec3(1.0 / gamma));
 
 ![img](https://learnopengl-cn.github.io/img/05/02/gamma_correction_gamma_curves.png)
 
-## 阴影映射
+## 2. 阴影映射
 
 含阴影映射的 Shader 在 `blinn_phong_2.fs` 中实现。
 
@@ -206,6 +206,112 @@ float ShadowCalc(vec4 frag_pos_light_space, int light_index, float NdotL)
 上图展示了 Shadow Mapping 的效果。右下角不正确的阴影是光源的视口导致的。调大光源的视角可以减小该阴影，但会导致物体阴影的锯齿增大（因为物体对应的阴影分辨率减小了）。
 
 如果要实现不受视口限制的点光源阴影，就需要从六个角度都计算一遍阴影映射贴图。LearnOpenGL CN 中给出了介绍：[点阴影 - LearnOpenGL CN (learnopengl-cn.github.io)](https://learnopengl-cn.github.io/05%20Advanced%20Lighting/03%20Shadows/02%20Point%20Shadows/)
+
+## 3. SSAO
+
+在一些美术课程中，我们会接触到“闭塞”这一概念。闭塞是指任何角度的光线都很难到达的夹缝，这些区域对人眼来说也是判断物体形状的重要标准。LearnOpenGL CN 中对闭塞的表述是：这些区域很大程度上是被周围的几何体遮蔽的，光线会很难流失，所以这些地方看起来会更暗一些。
+
+下图是抖抖村的插画课程中对“闭塞”的解释，与画出物体的轮廓和闭塞后的效果。可以看到，如果表达出了画面中闭塞的部分，就算不刻画其余地方的光影、颜色，也能非常好地表达物体的形状。因此闭塞对人眼来说是很重要的画面组成部分。
+
+![1713091983429](C:\Users\Admin\Documents\GitHub\USTC_CG_24\Homeworks\assets\1713091983429.png)
+
+![1713091928415](C:\Users\Admin\Documents\GitHub\USTC_CG_24\Homeworks\assets\1713091928415.png)
+
+从原理上讲，局部光照模型并不能计算出光线难以达到的夹缝中的闭塞效果。因此，我们需要用一些 Trick 来模拟闭塞的光照效果，从而让画面更容易被人眼接受。这就是**环境光遮蔽**（AO）。
+
+以下的 SSAO 算法实现主要参考了：[SSAO - LearnOpenGL CN (learnopengl-cn.github.io)](https://learnopengl-cn.github.io/05%20Advanced%20Lighting/09%20SSAO/)
+
+SSAO 是一种在屏幕空间中进行的环境光遮蔽。要计算 SSAO，只需要传入片元中每个顶点中的位置、法线、深度等 G-Buffer 中已经计算好的信息，以及到相机坐标的变换矩阵。因此，SSAO 不需要知道场景本身的模型信息，从这个角度来讲，SSAO 是一种图像的后处理。
+
+SSAO 的原理是计算每个片元对应模型中点的周围半球区域中，可见区域占整个区域的比例，并将该比例低的区域压暗。如下图，右侧的半球体中因为有不可见区域，所以会被压暗：
+
+![img](https://learnopengl-cn.github.io/img/05/09/ssao_hemisphere.png)
+
+要数值计算这一比例，自然的方法是对半球体区域进行采样。LearnOpenGL CN 中的做法是传入一系列切线坐标下的采样方向贴图，在片元着色器中再计算具体的采样点。这个方法有一些麻烦，我这里的采样方向是在片元着色器中用 Hash 函数实时计算的，代码如下：
+
+```c
+vec3 dir = hash33_sphere(vec3(uv, i)); 
+if(dot(dir, normal) < 0.0) dir = -dir;
+vec3 samp = frag_pos + dir * radius;
+```
+
+要采样半球面区域，只需要将与法线点积小于 0 的方向反转即可，不需要像资料里一样做切线空间的变换。
+
+`hash33_sphere` 是我手动实现的球体采样函数，在单位球中进行随机的均匀采样。（似乎不均匀的采样效果会更好？将 `pow` 指数改为1，能做到越靠近原点，采样越多的效果）。代码如下：
+
+```c
+//copied and adjusted from https://zhuanlan.zhihu.com/p/599263679
+vec3 hash33(vec3 p3)
+{
+    p3 = fract(p3 * vec3(1.4031, 2.1060, 2.0973) * vec3(50.0)); 
+    p3 += dot(p3, p3.yxz + 36.33); 
+    return fract((p3.xxy + p3.yxx)*p3.zyx);
+}
+    
+vec3 hash33_sphere(vec3 p3)
+{
+    vec3 hash = hash33(p3);
+    hash.xy *= 2 * PI;
+    return vec3(vec2(cos(hash.x), sin(hash.x)) * sin(hash.y), cos(hash.y))
+             * pow(hash.z, 0.333);
+}
+```
+
+在确定了采样点在三维空间中的位置后，我们就能得到这个点的实际深度与对应的贴图位置（从而能确定相机看到的最远深度）了。确定采样点是否能被相机看到的代码如下：
+
+```c
+vec4 samp_pos_clip = projection * view * vec4(samp, 1.0);
+vec3 samp_pos_camera_space = samp_pos_clip.xyz / samp_pos_clip.w;
+float samp_depth = samp_pos_camera_space.z;
+vec2 samp_uv = samp_pos_camera_space.xy * 0.5 + 0.5;
+vec3 samp_pos = texture(positionSampler, samp_uv).xyz;
+
+// 剔除背景
+vec3 frag_norm = texture(normalSampler, samp_uv).rgb;
+if(len(frag_norm) < 0.1)
+    continue;
+
+float frag_depth = texture(depthSampler, samp_uv).r;
+
+float rangeCheck = smoothstep(0.0, 1.0, radius / (len(frag_pos - samp_pos)));
+occlusion += (samp_depth > frag_depth ? 1.0 : 0.0) * rangeCheck;
+```
+
+这里还实现了 RangeCheck，但实现的方式与 LearnOpenGL CN 中有所不同。（不知道为什么那个实现用处不大）。这是因为正常物体的边缘也会被 SSAO 判定为闭塞，而这会导致以下的错误效果，几何体的边缘出现了不理想的黑边：
+
+| Without Range Check                                          | With Range Check                                             |
+| ------------------------------------------------------------ | ------------------------------------------------------------ |
+| ![1713097767798](C:\Users\Admin\Documents\GitHub\USTC_CG_24\Homeworks\assets\1713097767798.png) | ![1713097738124](C:\Users\Admin\Documents\GitHub\USTC_CG_24\Homeworks\assets\1713097738124.png) |
+
+生成的 SSAO 贴图如下（radius = 0.100, 采样数为 128，均匀球体采样）：
+
+![1713097612322](C:\Users\Admin\Documents\GitHub\USTC_CG_24\Homeworks\assets\1713097612322.png)
+
+将 SSAO 贴图与计算出来的光照颜色相乘，即可得到带有闭塞的画面。这里的画面是将 SSAO 贴图也做了 Gamma 校正后相乘得到的。
+
+![1713097634621](C:\Users\Admin\Documents\GitHub\USTC_CG_24\Homeworks\assets\1713097634621.png)
+
+以下是 SSAO 前后的对比，可以更明显地看到 SSAO 消除了狮子浮雕的“悬浮”效果，从而优化了观感。
+
+| Without SSAO                                                 | With SSAO                                                    |
+| ------------------------------------------------------------ | ------------------------------------------------------------ |
+| ![1713094829411](C:\Users\Admin\Documents\GitHub\USTC_CG_24\Homeworks\assets\1713094829411.png) | ![1713094811155](C:\Users\Admin\Documents\GitHub\USTC_CG_24\Homeworks\assets\1713094811155.png) |
+
+目前实现的 SSAO 会因为采样不足而存在噪点问题。因为随机采样的依据是屏幕空间中的坐标，所以噪点会“蒙”在画面上，对于一些游戏来说是不太好的画面效果。（虽然也见过刻意为画面增添风格化噪点的画师和摄影师...）以下是降低采样率后的噪点效果（采样率为 8）：
+
+![1713095118480](C:\Users\Admin\Documents\GitHub\USTC_CG_24\Homeworks\assets\1713095118480.png)
+
+这实际上可以通过再用一个 Pass 来低通滤波降噪处理。但再写一个 Pass 需要新建一个节点，这里没有再这样做了（躺）。
+
+另一个问题是，Box on Plane 模型中似乎会因为立方体的法线设置问题而导致立方体表面出现不该出现的 SSAO，如下图。不过这似乎是模型本身对法线插值造成的问题？
+
+![1713097958060](C:\Users\Admin\Documents\GitHub\USTC_CG_24\Homeworks\assets\1713097958060.png)
+
+在实现 SSAO 的过程中要向 Shader 中传入不少新的纹理，这些都要在 C++ 代码中实现。这又是一个学习 OpenGL 的机会。
+
+## 4. PCSS
+
+
 
 ## 心得体会
 
