@@ -23,7 +23,7 @@ static void node_declare_add_sphere_light(NodeDeclarationBuilder& b)
     b.add_input<decl::Float>("R").default_val(1).min(0).max(100);
     b.add_input<decl::Float>("G").default_val(1).min(0).max(100);
     b.add_input<decl::Float>("B").default_val(1).min(0).max(100);
-    b.add_input<decl::Float>("radius").default_val(0.1).min(0).max(0.1);
+    b.add_input<decl::Float>("radius").default_val(0.1).min(0).max(1);
 
     b.add_input<decl::String>("Path").default_val("Light");
 }

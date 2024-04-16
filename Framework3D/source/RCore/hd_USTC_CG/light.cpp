@@ -251,17 +251,39 @@ Color Hd_USTC_CG_Rect_Light::Sample(
     float& sample_light_pdf,
     const std::function<float()>& uniform_float)
 {
-    return {};
+    GfVec3f base_x = (corner2 - corner0);
+    GfVec3f base_y = (corner1 - corner0);
+    GfVec3f normal = GfCross(base_x, base_y).GetNormalized();
+
+    // if (GfDot(normal, pos - corner0) < 0) return {};
+    if (GfDot(normal, corner0 - pos) > 0)
+        normal = -normal;
+
+    float x = uniform_float(), y = uniform_float();
+    GfVec3f sample_pos = corner0 + base_x * x + base_y * y;
+
+    float w = GfDot(-normal, corner0 - pos) / GfDot(-normal, -normal);
+    GfVec3f origin = pos - normal * w;
+    float u = GfDot(base_x.GetNormalized(), (sample_pos - origin));
+    float v = GfDot(base_y.GetNormalized(), (sample_pos - origin));
+
+    auto sampledPosOnSurface = sample_pos;
+    sampled_light_pos = sampledPosOnSurface;
+    dir = (sampledPosOnSurface - pos).GetNormalized();
+
+    float cosVal = GfDot(dir, -normal);
+	sample_light_pdf = cosVal * w / (u * u + v * v + w * w) / sqrt(u * u + v * v + w * w) / 8 / M_PI; 
+
+    return irradiance * cosVal / M_PI / 1000;
 }
 
 Color Hd_USTC_CG_Rect_Light::Intersect(const GfRay& ray, float& depth)
 {
-    return {};
-}
-
-Color Hd_USTC_CG_Rect_Light::Le(const GfVec3f& dir)
-{
-    return {};
+    depth = std::numeric_limits<float>::infinity();
+    double distance;
+    if(ray.Intersect((GfVec3d)corner0, (GfVec3d)corner2, (GfVec3d)corner1, &distance)) depth = distance;
+    if(ray.Intersect((GfVec3d)corner2, (GfVec3d)corner3, (GfVec3d)corner1, &distance)) depth = distance;
+    return irradiance / M_PI;
 }
 
 void Hd_USTC_CG_Rect_Light::Sync(
@@ -286,6 +308,9 @@ void Hd_USTC_CG_Rect_Light::Sync(
     power = sceneDelegate->GetLightParamValue(id, HdLightTokens->color).Get<GfVec3f>() * diffuse;
 
     // HW7_TODO: calculate irradiance
+    float area = width * height;
+
+    irradiance = power / area;
 }
 
 USTC_CG_NAMESPACE_CLOSE_SCOPE
