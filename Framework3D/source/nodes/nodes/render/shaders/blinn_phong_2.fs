@@ -36,7 +36,7 @@ layout(location = 0) out vec4 Color;
 
 float ShadowCalc(vec4 frag_pos_light_space, int light_index, float NdotL)
 {
-    const float bias = max(0.05 * (1.0 - NdotL), 0.005);
+    float bias = max(0.05 * (1.0 - NdotL), 0.005);
     vec3 proj_coords = frag_pos_light_space.xyz / frag_pos_light_space.w;
     proj_coords = proj_coords * 0.5 + 0.5;
     float closest_depth = texture(shadow_maps, vec3(proj_coords.xy, lights[light_index].shadow_map_id)).r;

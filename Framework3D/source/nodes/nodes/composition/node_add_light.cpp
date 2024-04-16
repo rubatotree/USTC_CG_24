@@ -15,10 +15,10 @@ static void node_declare(NodeDeclarationBuilder& b)
     b.add_input<decl::Float>("X").default_val(0).min(-10).max(10);
     b.add_input<decl::Float>("Y").default_val(0).min(-10).max(10);
     b.add_input<decl::Float>("Z").default_val(0).min(-10).max(10);
-    b.add_input<decl::Float>("R").default_val(1).min(0).max(10);
-    b.add_input<decl::Float>("G").default_val(1).min(0).max(10);
-    b.add_input<decl::Float>("B").default_val(1).min(0).max(10);
-    b.add_input<decl::Float>("radius").default_val(0.1).min(0).max(1);
+    b.add_input<decl::Float>("R").default_val(1).min(0).max(100);
+    b.add_input<decl::Float>("G").default_val(1).min(0).max(100);
+    b.add_input<decl::Float>("B").default_val(1).min(0).max(100);
+    b.add_input<decl::Float>("radius").default_val(0.1).min(0).max(0.1);
 
     b.add_input<decl::String>("Path").default_val("Light");
 }

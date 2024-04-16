@@ -5,8 +5,14 @@ libs/
 .vs
 imgui.ini
 third_party/
-*.png
 _deps/
-*.jpg
 *.usda
 *.lnk
+Framework2D/**/*.jpg
+Framework2D/**/*.png
+Framework3D/**/*.jpg
+Framework3D/**/*.png
+Homeworks/**/*.png
+Homeworks/**/*.jpg
+Softwares/**/*.png
+Softwares/**/*.jpg

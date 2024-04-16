@@ -121,6 +121,8 @@ static void node_exec(ExeParams params)
     GfVec3f camPos = GfMatrix4f(free_camera->GetTransform()).ExtractTranslation();
     shader->shader.setVec3("camPos", camPos);
 
+    shader->shader.setInt("shadow_map_resolution", shadow_maps->desc.size[0]);
+
     GLuint lightBuffer;
     glGenBuffers(1, &lightBuffer);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, lightBuffer);
