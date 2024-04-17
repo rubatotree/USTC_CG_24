@@ -1,8 +1,11 @@
 #include "path.h"
 
+#include <cfloat>
+#include <iostream>
 #include <random>
 
 #include "surfaceInteraction.h"
+#include "utils/sampling.hpp"
 USTC_CG_NAMESPACE_OPEN_SCOPE
 using namespace pxr;
 
@@ -36,7 +39,12 @@ GfVec3f PathIntegrator::EstimateOutGoingRadiance(
     }
 
     // This can be customized : Do we want to see the lights? (Other than dome lights?)
-    if (recursion_depth == 0) {
+    const bool see_lights = false;
+    if (see_lights && recursion_depth == 0) {
+        GfVec3f pos = {NAN, NAN, NAN};
+        auto light = IntersectLights(ray, pos);
+        if (!isnan(pos[0]))
+            return light;
     }
 
     // Flip the normal if opposite
@@ -48,11 +56,24 @@ GfVec3f PathIntegrator::EstimateOutGoingRadiance(
     GfVec3f color{ 0 };
     GfVec3f directLight = EstimateDirectLight(si, uniform_float);
 
-    // HW7_TODO: Estimate global lighting here.
+    // Russian roulette
+    const float russian_roulette_probability = 0.8f;
+    if (uniform_float() > russian_roulette_probability)
+        return directLight;
+
+    // Global Lighting
     GfVec3f globalLight;
+    GfVec3f wi;
+    float pdf;
+    si.Sample(wi, pdf, uniform_float);
+    auto li = 
+        EstimateOutGoingRadiance( GfRay(si.position + 0.0001f * si.geometricNormal, wi), uniform_float, recursion_depth + 1);
+    // auto fr = si.material->Pdf(wi, si.wo, si.texcoord);
+    auto fr = si.Eval(wi);
+    float cosVal = abs(GfDot(si.shadingNormal, wi));
+    globalLight = GfCompMult(li, fr) * cosVal / pdf;
 
     color = directLight + globalLight;
-
     return color;
 }
 
