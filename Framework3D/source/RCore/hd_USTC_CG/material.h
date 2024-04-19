@@ -59,7 +59,8 @@ class Hd_USTC_CG_Material : public HdMaterial {
     InputDescriptor normal;
     InputDescriptor ior;
 
-   private:
+   public:
+    // Set to Public for BRDF.h
     struct MaterialRecord {
         GfVec3f diffuseColor;
         GfVec3f specularColor;
@@ -76,6 +77,7 @@ class Hd_USTC_CG_Material : public HdMaterial {
         float ior;
     };
 
+   private:
     MaterialRecord SampleMaterialRecord(GfVec2f texcoord);
     HdMaterialNetwork2 surfaceNetwork;
 

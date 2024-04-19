@@ -64,12 +64,12 @@ GfVec3f PathIntegrator::EstimateOutGoingRadiance(
     // Global Lighting
     GfVec3f globalLight;
     GfVec3f wi;
+    Color fr;
     float pdf;
+
     si.Sample(wi, pdf, uniform_float);
-    auto li = 
-        EstimateOutGoingRadiance( GfRay(si.position + 0.0001f * si.geometricNormal, wi), uniform_float, recursion_depth + 1);
-    // auto fr = si.material->Pdf(wi, si.wo, si.texcoord);
-    auto fr = si.Eval(wi);
+    auto li = EstimateOutGoingRadiance( GfRay(si.position + 0.0001f * si.geometricNormal, wi), uniform_float, recursion_depth + 1);
+    fr = si.Eval(wi);
     float cosVal = abs(GfDot(si.shadingNormal, wi));
     globalLight = GfCompMult(li, fr) * cosVal / pdf;
 

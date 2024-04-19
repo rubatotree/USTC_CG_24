@@ -1,6 +1,7 @@
 // #define __GNUC__
 
 #include "material.h"
+#include "BRDF.h"
 
 #include "RCore/internal/gl/GLResources.hpp"
 #include "Utils/Logging/Logging.h"
@@ -214,7 +215,37 @@ Color Hd_USTC_CG_Material::Eval(GfVec3f wi, GfVec3f wo, GfVec2f texcoord)
 
     GfVec3f diffuseColor = record.diffuseColor;
 
-    GfVec3f result = diffuseColor / M_PI;
+    GfVec3f n = record.normal, h = (wi + wo).GetNormalized();
+    float NdotL = GfDot(n, wi), NdotV = GfDot(n, wo), NdotH = GfDot(n, h), VdotH = GfDot(wo, h);
+    float G, D;
+    Color F, BSDF;
+
+    // Calculating D
+    // https://zhuanlan.zhihu.com/p/69380665
+    // 4.3 GGX Method
+    float alpha = record.roughness * record.roughness;
+    D = alpha * alpha / (M_PI * (NdotH * NdotH * (alpha * alpha - 1) + 1) * (NdotH * NdotH * (alpha * alpha - 1) + 1));
+    
+    // Calculating G 
+    // https://zhuanlan.zhihu.com/p/81708753
+    // 4.2.3.3 Unity HDRP Method
+    float a = record.roughness;
+    float lambda_v = NdotL * (NdotV * (1 - a) + a); 
+    float lambda_l = NdotV * sqrt(a * a + (1 - a * a) * NdotL * NdotL);
+    G = 0.5 / (lambda_l + lambda_v);
+    
+    // Calculating F
+    // https://zhuanlan.zhihu.com/p/459557696
+    Color F0 = GfLerp(record.metallic, GfVec3f(0.04), diffuseColor);
+    F = F0 + (GfVec3f(1) - F0) * pow(1 - VdotH, 5);
+
+    // std::cout << "F=" << F << std::endl;
+    // std::cout << "G=" << G << std::endl;
+    // std::cout << "D=" << D << std::endl;
+
+    BSDF = F * G * D / (4 * GfDot(wi, n) * GfDot(wo, n));
+    GfVec3f result = BSDF / M_PI;
+    result = diffuseColor / M_PI;
 
     return result;
 }
