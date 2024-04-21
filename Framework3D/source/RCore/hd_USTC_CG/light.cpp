@@ -339,14 +339,11 @@ Color Hd_USTC_CG_Rect_Light::Sample(
     float dist = (sampledPosOnSurface - pos).GetLength();
 
     float cosVal = GfDot(dir, -normal);
-    if (success) {
-        sample_light_pdf = 1 / width / height;
-        return irradiance * cosVal / M_PI / dist / dist;
-    }
-	else {
-		sample_light_pdf = 1 / width / height;
+	sample_light_pdf = 1 / width / height / cosVal * dist * dist;
+    if (success)
+        return irradiance / M_PI;
+	else
 		return Color{ 0 };
-	}
 }
 
 
