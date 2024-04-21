@@ -237,24 +237,38 @@ Color Integrator::EstimateDirectLight(
     SurfaceInteraction& si,
     const std::function<float()>& uniform_float)
 {
-
     // Sample the lights.
-    GfVec3f wi;
-    float sample_light_pdf;
-    GfVec3f sampled_light_pos;
+    GfVec3f wi1;
+    float sample_light_pdf = 0;
+    GfVec3f sampled_light_pos1;
     auto sample_light_luminance =
-        SampleLights(si.position, wi, sampled_light_pos, sample_light_pdf, uniform_float);
-    auto brdfVal = si.Eval(wi);
+        SampleLights(si.position, wi1, sampled_light_pos1, sample_light_pdf, uniform_float);
+    auto brdfVal1 = si.Eval(wi1);
     GfVec3f contribution_by_sample_lights{ 0 };
-
-    if (this->VisibilityTest(si.position + 0.0001f * si.geometricNormal, sampled_light_pos)) {
-        contribution_by_sample_lights = GfCompMult(sample_light_luminance, brdfVal) *
-                                        abs(GfDot(si.shadingNormal, wi)) / sample_light_pdf;
+    if (this->VisibilityTest(si.position + 0.0001f * si.geometricNormal, sampled_light_pos1)) 
+    {
+        contribution_by_sample_lights = GfCompMult(sample_light_luminance, brdfVal1) *
+                                        abs(GfDot(si.shadingNormal, wi1)) / sample_light_pdf;
     }
 
-    // HW7_TODO: Sample BRDF (optional)
+    // Sample the BRDF.
+    GfVec3f wi2;
+    float sample_brdf_pdf = 0;
+    GfVec3f sampled_light_pos2;
+	auto brdfVal2 = si.Sample(wi2, sample_brdf_pdf, uniform_float);
+    auto sample_light_brdf_luminance =
+        IntersectLights(GfRay(si.position, wi2), sampled_light_pos2);
+    GfVec3f contribution_by_sample_brdf{ 0 };
+    if (this->VisibilityTest(si.position + 0.0001f * si.geometricNormal, sampled_light_pos2))
+    {
+        contribution_by_sample_brdf = GfCompMult(sample_light_brdf_luminance, brdfVal2) *
+                                      abs(GfDot(si.shadingNormal, wi2)) / sample_brdf_pdf;
+    }
 
-    return contribution_by_sample_lights;
+    // MIS
+    float w_lights = sample_light_pdf / (sample_light_pdf + sample_brdf_pdf),
+          w_brdf = sample_brdf_pdf / (sample_light_pdf + sample_brdf_pdf);
+    return w_lights * contribution_by_sample_lights + w_brdf * contribution_by_sample_brdf;
 }
 
 void SamplingIntegrator::_writeBuffer(unsigned x, unsigned y, VtValue color)
