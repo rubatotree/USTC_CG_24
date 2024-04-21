@@ -39,11 +39,11 @@ GfVec3f PathIntegrator::EstimateOutGoingRadiance(
     }
 
     // This can be customized : Do we want to see the lights? (Other than dome lights?)
-    const bool see_lights = false;
+    const bool see_lights = true;
     if (see_lights && recursion_depth == 0) {
         GfVec3f pos = {NAN, NAN, NAN};
         auto light = IntersectLights(ray, pos);
-        if (!isnan(pos[0]))
+        if (!isnan(pos[0]) && pos.GetLength() < 100.0)
             return light;
     }
 

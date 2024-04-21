@@ -320,8 +320,16 @@ Color Hd_USTC_CG_Rect_Light::Sample(
     GfVec3f base_y = (corner1 - corner0);
     GfVec3f normal = GfCross(base_x, base_y).GetNormalized();
 
+    bool success = true;
+
     if (GfDot(normal, corner0 - pos) > 0)
+    {
         normal = -normal;
+    }
+    else
+    {
+        success = false;
+    }
 
     float x = uniform_float(), y = uniform_float();
     auto sampledPosOnSurface = corner0 + base_x * x + base_y * y;
@@ -331,10 +339,16 @@ Color Hd_USTC_CG_Rect_Light::Sample(
     float dist = (sampledPosOnSurface - pos).GetLength();
 
     float cosVal = GfDot(dir, -normal);
-	sample_light_pdf = 1 / width / height / 2; 
-
-    return irradiance * cosVal / M_PI / dist / dist;
+    if (success) {
+        sample_light_pdf = 1 / width / height;
+        return irradiance * cosVal / M_PI / dist / dist;
+    }
+	else {
+		sample_light_pdf = 1 / width / height;
+		return Color{ 0 };
+	}
 }
+
 
 Color Hd_USTC_CG_Rect_Light::Intersect(const GfRay& ray, float& depth)
 {
