@@ -16,3 +16,6 @@ Homeworks/**/*.png
 Homeworks/**/*.jpg
 Softwares/**/*.png
 Softwares/**/*.jpg
+.DS_Store
+.vs
+*.zip
