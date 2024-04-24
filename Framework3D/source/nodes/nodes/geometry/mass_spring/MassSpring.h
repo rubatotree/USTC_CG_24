@@ -2,6 +2,7 @@
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
 #include <unordered_set>
+#include <chrono>
 #include "utils.h"
 
 #define TIC(name) auto start_##name = std::chrono::high_resolution_clock::now(); 
@@ -36,6 +37,7 @@ class MassSpring {
 
     MassSpring(const Eigen::MatrixXd &X, const EdgeSet &E);
 
+    Eigen::Vector3d acceleration_ext = gravity + wind_ext_acc;
     virtual void step();
     void reset();
 
@@ -91,5 +93,8 @@ class MassSpring {
     std::vector<double> E_rest_length;
     std::vector<bool>
         dirichlet_bc_mask;  // mask for marking fixed points (Dirichlet boundary condition)
+
+    int n_active;
+	Eigen::SparseMatrix<double> K, Kt, M, Minv;
 };
 }  // namespace USTC_CG::node_mass_spring

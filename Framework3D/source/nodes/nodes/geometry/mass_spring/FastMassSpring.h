@@ -16,5 +16,8 @@ class FastMassSpring : public MassSpring {
    protected:
     // Custom variables, like prefactorized A 
    
+	SparseMatrix<double> L, J;
+    SimplicialCholesky<SparseMatrix<double>> solver;
+        bool initialized = false;
 };
 }  // namespace USTC_CG::node_mass_spring
