@@ -47,6 +47,12 @@ FastMassSpring::FastMassSpring(const Eigen::MatrixXd& X, const EdgeSet& E) : Mas
 
 void FastMassSpring::step()
 {
+	TIC(step)
+    static int step_n = 0;
+    static int sum_itr = 0;
+    static double sum_step_time = 0;
+    step_n++;
+
     unsigned n_vertices = X.rows();
 	int n_spring = E.size();
 
@@ -143,6 +149,13 @@ void FastMassSpring::step()
 	
 	vel = (X - X_prev) / h;
 	if (enable_damping) vel *= pow(damping, h);
+
+    TOC(step)
+    double steptime = std::chrono::duration_cast<std::chrono::microseconds>(end_step - start_step).count();
+    sum_step_time += steptime;
+	sum_itr += iter + 1;
+	// std::cout << "Average Iteration Number: " << (double)sum_itr / step_n << std::endl;
+    // std::cout << "Average Step Time: " << sum_step_time / step_n << " microseconds.\n";
 }
 
 }  // namespace USTC_CG::node_mass_spring

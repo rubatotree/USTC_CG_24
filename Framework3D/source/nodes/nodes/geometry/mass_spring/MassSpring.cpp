@@ -62,7 +62,10 @@ MassSpring::MassSpring(const Eigen::MatrixXd& X, const EdgeSet& E)
 
 void MassSpring::step()
 {
+	TIC(step)
     static int step_n = 0;
+    static double sum_step_time = 0;
+    static int sum_itr = 0;
     step_n++;
     Eigen::Vector3d acceleration_ext = gravity + wind_ext_acc;
 
@@ -80,7 +83,6 @@ void MassSpring::step()
 
     if (time_integrator == IMPLICIT_EULER) {
         // Implicit Euler
-        TIC(step)
 
         // compute Y 
 		VectorXd x = VectorXd::Zero(n_vertices * 3);
@@ -111,7 +113,8 @@ void MassSpring::step()
         const int itr_max = 20;
         const double itr_epsilon = 1e-3;
 
-        for (int itr = 0; itr < itr_max; itr++)
+        int itr;
+        for (itr = 0; itr < itr_max; itr++)
         {
 			auto H_elastic = computeHessianSparse(stiffness);  // size = [nx3, nx3]
 			auto egrad = computeGrad(stiffness);
@@ -136,7 +139,9 @@ void MassSpring::step()
         }
         vel = (X - X_prev) / h;
         if (enable_damping) vel *= pow(damping, h);
-        TOC(step)
+
+        sum_itr += itr + 1;
+        // std::cout << "Average Iteration Number: " << (double)sum_itr / step_n << std::endl;
     }
     else if (time_integrator == SEMI_IMPLICIT_EULER) {
 
@@ -188,6 +193,11 @@ void MassSpring::step()
         std::cerr << "Unknown time integrator!" << std::endl;
         return;
     }
+
+    TOC(step)
+    double steptime = std::chrono::duration_cast<std::chrono::microseconds>(end_step - start_step).count();
+    sum_step_time += steptime;
+    // std::cout << "Average Step Time: " << sum_step_time / step_n << " microseconds.\n";
 }
 
 // There are different types of mass spring energy:
