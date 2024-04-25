@@ -1,6 +1,5 @@
 #include "MassSpring.h"
 #include <iostream>
-#include <chrono>
 
 namespace USTC_CG::node_mass_spring {
 MassSpring::MassSpring(const Eigen::MatrixXd& X, const EdgeSet& E)
