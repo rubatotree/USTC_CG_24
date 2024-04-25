@@ -258,8 +258,7 @@ Eigen::SparseMatrix<double> MassSpring::computeHessianSparse(double stiffness)
 	    Matrix3d he = k * (l / rl - 1) * Matrix3d::Identity() - k * l / rl / rl / rl * r * r.transpose();
 
         // Method 1
-        if (l > rl)
-            he = -k * l / rl / rl / rl * r * r.transpose();
+        if (l > rl) he = -k * l / rl / rl / rl * r * r.transpose();
 
         for (int r = 0; r < 3; r++)
         {

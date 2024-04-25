@@ -85,8 +85,6 @@ void FastMassSpring::step()
 		J.setFromTriplets(tripletList_J.begin(), tripletList_J.end());
 		solver.compute(K * (M + h * h * L) * Kt);
 		initialized = true;
-
-		std::cout << "A precalculated" << std::endl;
 	}
 
     // (HW Optional) Necessary preparation
@@ -119,7 +117,7 @@ void FastMassSpring::step()
 	x = y;// initial guess
 	xa = K * x; 
 
-	const double itr_epsilon = 1e-4;
+	const double itr_epsilon = 1e-3;
 	unsigned iter;
     for (iter = 0; iter < max_iter; iter++) 
 	{
