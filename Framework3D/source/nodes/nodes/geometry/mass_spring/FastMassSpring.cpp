@@ -3,13 +3,14 @@
 
 
 namespace USTC_CG::node_mass_spring {
-FastMassSpring::FastMassSpring(const Eigen::MatrixXd& X, const EdgeSet& E, const float stiffness): 
+FastMassSpring::FastMassSpring(const Eigen::MatrixXd& X, const EdgeSet& E, const float stiffness, const float h): 
 MassSpring(X, E){
     // construct L and J at initialization
     std::cout << "init fast mass spring" << std::endl;
 
     unsigned n_vertices = X.rows();
     this->stiffness = stiffness; 
+    this->h = h; 
 
     unsigned n_fix = sqrt(X.rows());  // Here we assume the cloth is square
     dirichlet_bc_mask[0] = true;
