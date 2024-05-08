@@ -80,13 +80,16 @@ void SPHBase::compute_density()
     for (auto& p : ps_.particles()) {
 
         // ... necessary initialization of particle p's density here  
+        double rho = ps_.mass() * W_zero(ps_.h());
 
         // Then traverse all neighbor fluid particles of p
         for (auto& q : p->neighbors()) {
 
             // ... compute the density contribution from q to p
+            rho += ps_.mass() * W(p->x() - q->x(), ps_.h());
 
         }
+        p->density() = rho;
     }
 }
 
@@ -102,14 +105,13 @@ void SPHBase::compute_non_pressure_acceleration()
 
         // necessary code here to compute particle p's acceleration include gravity and viscosity
         // We do not consider surface tension in this assignment, but you can add it if you like
-
-        //for (auto& q : p->neighbors()) {
-        // 
-        // Prompt: use the "compute_viscosity_acceleration" function to compute the viscosity acceleration between p and q"
-        // 
-        //}
-
-
+        Vector3d viscous = Vector3d::Zero();
+        for (auto& q : p->neighbors()) {
+         
+			// Prompt: use the "compute_viscosity_acceleration" function to compute the viscosity acceleration between p and q"
+            viscous += compute_viscosity_acceleration(p, q);
+        }
+		p->acceleration() = gravity_ + viscous;
     }
 }
 
@@ -122,9 +124,9 @@ Vector3d SPHBase::compute_viscosity_acceleration(
     auto x_ij = p->x() - q->x();
     Vector3d grad = grad_W(p->x() - q->x(), ps_.h());
 
-    // Vector3d laplace_v = ... 
+    Vector3d laplace_v = 6 * ps_.mass() / q->density() * v_ij.dot(x_ij) / (x_ij.squaredNorm() + 0.01 * ps_.h() * ps_.h()) * grad_W(x_ij, ps_.h());
 
-    //return this->viscosity_ * laplace_v;
+    return this->viscosity_ * laplace_v;
 
     return Vector3d::Zero();
 }
@@ -134,6 +136,22 @@ void SPHBase::compute_pressure_gradient_acceleration()
 {
     for (auto& p : ps_.particles()) {
         // (HW TODO) Traverse all particles and compute each particle's acceleration from pressure gradient force
+		Vector3d pressure = Vector3d::Zero();
+        for (auto& q : p->neighbors()) {
+
+            // ... compute the density contribution from q to p
+            pressure += ps_.mass() *
+                        (p->pressure() / (p->density() * p->density()) +
+                         q->pressure() / (q->density() * q->density())) *
+                        grad_W(p->x() - q->x(), ps_.h());
+        }
+        // pressure *= p->density();
+        // p->acceleration() = -pressure / p->density();
+        p->acceleration() = -pressure;
+        if (std::isnan(p->acceleration().norm()))
+        {
+            std::cout << "find nan in pga" << std::endl;
+        }
     }
 }
 
@@ -153,6 +171,9 @@ void SPHBase::advect()
         // Remember to check collision after advection
 
         // Your code here 
+        p->vel() = p->vel() + dt() * p->acceleration();
+        p->x() = p->x() + dt() * p->vel();
+        check_collision(p);
 
         // ---------------------------------------------------------
         vel_.row(p->idx()) = p->vel().transpose();
@@ -197,6 +218,10 @@ MatrixXd SPHBase::get_vel_color_jet()
         if (fabs(max_vel_norm - min_vel_norm) > 1e-6) {
             idx = static_cast<int>(
                 floor((vel_norm - min_vel_norm) / (max_vel_norm - min_vel_norm) * 255));
+        }
+        if (idx > 255 || idx < 0) {
+            std::cout << "vel_norm = " << vel_norm << std::endl;
+            std::cout << "idx = " << idx << std::endl;
         }
         vel_color.row(i) << c[idx][0], c[idx][1], c[idx][2];
     }
