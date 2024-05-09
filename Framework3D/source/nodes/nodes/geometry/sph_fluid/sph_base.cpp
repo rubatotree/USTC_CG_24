@@ -16,6 +16,7 @@ SPHBase::SPHBase(const Eigen::MatrixXd& X, const Vector3d& box_min, const Vector
       box_max_(box_max),
       box_min_(box_min),
       ps_(X, box_min, box_max)
+
 {
 }
 
@@ -76,21 +77,21 @@ Vector3d SPHBase::grad_W(const Vector3d& r, double h)
 void SPHBase::compute_density()
 {
     // (HW TODO) Traverse all particles to compute each particle's density
-    // (Optional) This operation can be done in parallel using OpenMP 
-    for (auto& p : ps_.particles()) {
+    // (Optional) This operation can be done in parallel using OpenMP
+    int sz = ps().particles().size();
+#pragma omp parallel for
+    for (int i = 0; i < sz; i++) {
+		auto& p = ps().particles()[i];
+		// ... necessary initialization of particle p's density here
+		double rho = ps().mass() * W_zero(ps().h());
 
-        // ... necessary initialization of particle p's density here  
-        double rho = ps_.mass() * W_zero(ps_.h());
-
-        // Then traverse all neighbor fluid particles of p
-        for (auto& q : p->neighbors()) {
-
-            // ... compute the density contribution from q to p
-            rho += ps_.mass() * W(p->x() - q->x(), ps_.h());
-
-        }
-        p->density() = rho;
-    }
+		// Then traverse all neighbor fluid particles of p
+		for (auto& q : p->neighbors()) {
+			// ... compute the density contribution from q to p
+			rho += ps().mass() * W(p->x() - q->x(), ps().h());
+		}
+		p->density() = rho;
+	}
 }
 
 void SPHBase::compute_pressure()
@@ -101,8 +102,10 @@ void SPHBase::compute_pressure()
 void SPHBase::compute_non_pressure_acceleration()
 {
     // (HW TODO) Traverse all particles to compute each particle's non-pressure acceleration 
-    for (auto& p : ps_.particles()) {
-
+    int sz = ps().particles().size();
+#pragma omp parallel for
+    for (int i = 0; i < sz; i++) {
+		auto& p = ps().particles()[i];
         // necessary code here to compute particle p's acceleration include gravity and viscosity
         // We do not consider surface tension in this assignment, but you can add it if you like
         Vector3d viscous = Vector3d::Zero();
@@ -111,7 +114,7 @@ void SPHBase::compute_non_pressure_acceleration()
 			// Prompt: use the "compute_viscosity_acceleration" function to compute the viscosity acceleration between p and q"
             viscous += compute_viscosity_acceleration(p, q);
         }
-		p->acceleration() = gravity_ + viscous;
+        p->acceleration() = gravity() + viscous;
     }
 }
 
@@ -122,9 +125,9 @@ Vector3d SPHBase::compute_viscosity_acceleration(
 {
     auto v_ij = p->vel() - q->vel();
     auto x_ij = p->x() - q->x();
-    Vector3d grad = grad_W(p->x() - q->x(), ps_.h());
+    Vector3d grad = grad_W(p->x() - q->x(), ps().h());
 
-    Vector3d laplace_v = 6 * ps_.mass() / q->density() * v_ij.dot(x_ij) / (x_ij.squaredNorm() + 0.01 * ps_.h() * ps_.h()) * grad_W(x_ij, ps_.h());
+    Vector3d laplace_v = 6 * ps().mass() / q->density() * v_ij.dot(x_ij) / (x_ij.squaredNorm() + 0.01 * ps().h() * ps().h()) * grad_W(x_ij, ps().h());
 
     return this->viscosity_ * laplace_v;
 
@@ -134,24 +137,23 @@ Vector3d SPHBase::compute_viscosity_acceleration(
 // Traverse all particles and compute pressure gradient acceleration
 void SPHBase::compute_pressure_gradient_acceleration()
 {
-    for (auto& p : ps_.particles()) {
+    int sz = ps().particles().size();
+#pragma omp parallel for
+    for (int i = 0; i < sz; i++) {
+		auto& p = ps().particles()[i];
         // (HW TODO) Traverse all particles and compute each particle's acceleration from pressure gradient force
 		Vector3d pressure = Vector3d::Zero();
         for (auto& q : p->neighbors()) {
 
             // ... compute the density contribution from q to p
-            pressure += ps_.mass() *
+            pressure += ps().mass() *
                         (p->pressure() / (p->density() * p->density()) +
                          q->pressure() / (q->density() * q->density())) *
-                        grad_W(p->x() - q->x(), ps_.h());
+                        grad_W(p->x() - q->x(), ps().h());
         }
         // pressure *= p->density();
         // p->acceleration() = -pressure / p->density();
         p->acceleration() = -pressure;
-        if (std::isnan(p->acceleration().norm()))
-        {
-            std::cout << "find nan in pga" << std::endl;
-        }
     }
 }
 
@@ -163,9 +165,10 @@ void SPHBase::step()
 
 void SPHBase::advect()
 {
-    for (auto& p : ps_.particles())  
-    {
-
+    int sz = ps().particles().size();
+#pragma omp parallel for
+    for (int i = 0; i < sz; i++) {
+        auto& p = ps().particles()[i];
         // ---------------------------------------------------------
         // (HW TODO) Implement the advection step of each particle
         // Remember to check collision after advection
@@ -233,11 +236,11 @@ void SPHBase::reset()
     X_ = init_X_;
     vel_ = MatrixXd::Zero(X_.rows(), X_.cols());
 
-    for (auto& p : ps_.particles()) {
+    for (auto& p : ps().particles()) {
         p->vel() = Vector3d::Zero();
         p->x() = init_X_.row(p->idx()).transpose();
     }
 }
 
 // ---------------------------------------------------------------------------------------
-}  // namespace USTC_CG::node_sph_fluid
+}  // namespace USTC_CG::node_sph_fluid 

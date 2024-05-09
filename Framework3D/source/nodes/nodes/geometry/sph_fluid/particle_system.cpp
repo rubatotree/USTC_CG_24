@@ -52,7 +52,10 @@ ParticleSystem::ParticleSystem(const MatrixXd &X, const Vector3d &box_min, const
 void ParticleSystem::search_neighbors()
 {
     // update the neighbors for each particle
-    for (auto &p : particles_) {
+    int sz = particles_.size();
+#pragma omp parallel for
+    for (int i = 0; i < sz; i++) {
+        auto& p = particles_[i];
         p->neighbors_.clear();
         if (p->type_ == Particle::BOUNDARY) {
             // TODO: do we need to search neighbors for boundary particles?
