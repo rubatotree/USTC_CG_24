@@ -87,6 +87,13 @@ void SPHBase::compute_density()
             rho += ps().mass() * W(p->x() - q->x(), ps().h());
         }
         p->density() = rho;
+        if (rho == 0)
+        {
+            std::cout << "density of " << i << " is 0" << std::endl;
+            std::cout << "neighbor = " << p->neighbors().size() << std::endl;
+            int a;
+            std::cin >> a;
+        }
     }
 }
 
@@ -146,6 +153,17 @@ void SPHBase::compute_pressure_gradient_acceleration()
                         (p->pressure() / (p->density() * p->density()) +
                          q->pressure() / (q->density() * q->density())) *
                         grad_W(p->x() - q->x(), ps().h());
+            if (std::isnan(pressure[0]) || std::isnan(pressure[1]) || std::isnan(pressure[2]))
+            {
+				std::cout << "p->pressure = " << p->pressure() << "\n";
+				std::cout << "q->pressure = " << q->pressure() << "\n";
+				std::cout << "p->density  = " << p->density() << "\n";
+				std::cout << "q->density  = " << q->density() << "\n";
+                std::cout << "gradW = \n" << grad_W(p->x() - q->x(), ps().h()) << std::endl;
+                std::cout << "p=" << p->idx() << ", q=" << q->idx() << std::endl;
+                int a;
+                std::cin >> a;
+            }
         }
         // pressure *= p->density();
         // p->acceleration() = -pressure / p->density();

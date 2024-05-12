@@ -7,6 +7,7 @@ namespace USTC_CG::node_sph_fluid {
 WCSPH::WCSPH(const MatrixXd& X, const Vector3d& box_min, const Vector3d& box_max)
     : SPHBase(X, box_min, box_max)
 {
+    omp_set_num_threads(32);
 }
 
 void WCSPH::compute_density()
@@ -36,7 +37,6 @@ void WCSPH::step()
     // (HW TODO) Follow the instruction in documents and PPT,
     // implement the pipeline of fluid simulation
     // -------------------------------------------------------------
-    omp_set_num_threads(32);
 
 	// Search neighbors, compute density, advect, solve pressure acceleration, etc.
     TIC(cell)
