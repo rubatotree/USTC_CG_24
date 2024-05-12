@@ -60,5 +60,5 @@ void main() {
 
     mat3 TBN = mat3(tangent, bitangent, normal);
 
-    normal = normalize(TBN * norm);
+    // normal = normalize(TBN * norm);
 }

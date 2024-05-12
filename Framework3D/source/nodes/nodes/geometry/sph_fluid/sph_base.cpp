@@ -81,17 +81,13 @@ void SPHBase::compute_density()
     int sz = ps().particles().size();
 #pragma omp parallel for
     for (int i = 0; i < sz; i++) {
-		auto& p = ps().particles()[i];
-		// ... necessary initialization of particle p's density here
+        auto& p = ps().particles()[i];
 		double rho = ps().mass() * W_zero(ps().h());
-
-		// Then traverse all neighbor fluid particles of p
-		for (auto& q : p->neighbors()) {
-			// ... compute the density contribution from q to p
-			rho += ps().mass() * W(p->x() - q->x(), ps().h());
-		}
-		p->density() = rho;
-	}
+        for (auto& q : p->neighbors()) {
+            rho += ps().mass() * W(p->x() - q->x(), ps().h());
+        }
+        p->density() = rho;
+    }
 }
 
 void SPHBase::compute_pressure()
