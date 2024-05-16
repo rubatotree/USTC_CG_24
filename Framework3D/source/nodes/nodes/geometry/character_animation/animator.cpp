@@ -1,5 +1,6 @@
 #include "animator.h"
 #include <cassert>
+#include <queue>
 
 namespace USTC_CG::node_character_animation {
 
@@ -12,7 +13,24 @@ Joint::Joint(int idx, string name, int parent_idx) : idx_(idx), name_(name), par
 void Joint::compute_world_transform()
 {
     // ---------- (HW TODO) Compute world space trasform of this joint -----------------
-
+	if (parent_ == nullptr)
+	{
+        world_transform_ = local_transform_;
+    }
+    else {
+        Eigen::Matrix4f matp = Matrix4f::Zero(), matl = Matrix4f::Zero();
+        for (int i = 0; i < 4; i++)
+            for (int j = 0; j < 4; j++)
+            {
+                matp(i, j) = parent_->world_transform_[j][i];
+                matl(i, j) = local_transform_[j][i];
+            }
+        auto matw = matp * matl;
+        world_transform_ = GfMatrix4f();
+        for (int i = 0; i < 4; i++)
+            for (int j = 0; j < 4; j++)
+                world_transform_[j][i] = matw(i, j);
+    }
     // --------------------------------------------------------------------------------
 }
 
@@ -20,6 +38,9 @@ void JointTree::compute_world_transforms_for_each_joint()
 {
     // ----------- (HW_TODO) Traverse all joint and compute its world space transform ---
 	// Call compute_world_transform for each joint
+    for (int i = 0; i < joints_.size(); ++i) {
+        joints_[i]->compute_world_transform();
+	}
     // ---------------------------------------------
 }
 
@@ -93,6 +114,25 @@ void Animator::update_mesh_vertices()
 	// 2. For each vertex, compute the new position by transforming the rest position with the joint transforms
 	// 2. Update the vertex position in the mesh
 	// --------------------------------------------------------------------------------
+    
+	auto& indices = skel_->jointIndices; 
+	auto& weights = skel_->jointWeight;
+	int jointn = indices.size() / mesh_->vertices.size();
+    
+	for (int i = 0; i < mesh_->vertices.size(); i++)
+	{
+		auto& vertex = mesh_->vertices[i];
+		GfVec3f newpos = { 0.0, 0.0, 0.0 };
+		for (int j = 0; j < jointn; j++)
+		{
+            int idx = i * jointn + j;
+			newpos += weights[idx] * 
+				  joint_tree_.get_joint(indices[idx]) ->get_world_transform()
+				 .TransformAffine((skel_->bindTransforms[indices[idx]].GetInverse()
+				 .TransformAffine(vertex)));
+		}
+		vertex = newpos;
+	}
 }
 
 }  // namespace USTC_CG::node_character_animation
