@@ -13,10 +13,13 @@ MassSpring(X, E){
     this->h = h; 
 
     unsigned n_fix = sqrt(X.rows());  // Here we assume the cloth is square
-    dirichlet_bc_mask[0] = true;
-    dirichlet_bc_mask[n_fix - 1] = true;
+    // dirichlet_bc_mask[0] = true;
+    // dirichlet_bc_mask[n_fix - 1] = true;
 
-    n_active = n_vertices - 2;
+    n_active = n_vertices;
+    for (int i = 0; i < n_vertices; i++)
+        if (dirichlet_bc_mask[i])
+            n_active--;
 
 	// Select Matrix (K & Kt) 
 	std::vector<Triplet<double>> tripletList;
@@ -156,6 +159,33 @@ void FastMassSpring::step()
 	sum_itr += iter + 1;
 	// std::cout << "Average Iteration Number: " << (double)sum_itr / step_n << std::endl;
     // std::cout << "Average Step Time: " << sum_step_time / step_n << " microseconds.\n";
+    // only for "belly_dance_girl" model
+	int fix_n = 0;
+	double fix_rad = 0;
+    Vector3d fix_center = Vector3d::Zero();
+	for (int i = 0; i < n_vertices; i++)
+	{
+        if (dirichlet_bc_mask[i])
+        {
+			fix_center += X.row(i).transpose();
+			fix_n++;
+        }
+	}
+	fix_center /= fix_n;
+	for (int i = 0; i < n_vertices; i++)
+	{
+        if (dirichlet_bc_mask[i])
+        {
+			fix_rad += (X.row(i).transpose() - fix_center).norm();
+        }
+	}
+	fix_rad /= fix_n;
+        fix_rad *= 2.5;
+    fix_center += Vector3d(0, 0, -fix_rad);
+	sphere_center = fix_center.cast<float>();
+    sphere_radius = fix_rad;
+    // std::cout << "center:\n" << sphere_center << std::endl;
+    // std::cout << "radius: " << sphere_radius << std::endl;
 }
 
 }  // namespace USTC_CG::node_mass_spring

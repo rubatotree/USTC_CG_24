@@ -24,11 +24,15 @@ MassSpring::MassSpring(const Eigen::MatrixXd& X, const EdgeSet& E)
     // (HW_TODO) Fix two vertices, feel free to modify this 
 
     unsigned n_fix = sqrt(X.rows());  // Here we assume the cloth is square
-    dirichlet_bc_mask[0] = true;
-    dirichlet_bc_mask[n_fix - 1] = true;
+    // dirichlet_bc_mask[0] = true;
+    // dirichlet_bc_mask[n_fix - 1] = true;
+
 
     int n_vertices = X.rows();
-    n_active = n_vertices - 2;
+    n_active = n_vertices;
+    for (int i = 0; i < n_vertices; i++)
+        if (dirichlet_bc_mask[i])
+            n_active--;
 
 	// Select Matrix (K & Kt) 
 	std::vector<Triplet<double>> tripletList;
@@ -83,6 +87,7 @@ void MassSpring::step()
     if (time_integrator == IMPLICIT_EULER) {
         // Implicit Euler
 
+        std::cout << "b" << std::endl;
         // compute Y 
 		VectorXd x = VectorXd::Zero(n_vertices * 3);
 		VectorXd y = VectorXd::Zero(n_vertices * 3);
@@ -197,6 +202,34 @@ void MassSpring::step()
     double steptime = std::chrono::duration_cast<std::chrono::microseconds>(end_step - start_step).count();
     sum_step_time += steptime;
     // std::cout << "Average Step Time: " << sum_step_time / step_n << " microseconds.\n";
+
+    // only for "belly_dance_girl" model
+	int fix_n = 0;
+	double fix_rad = 0;
+    Vector3d fix_center = Vector3d::Zero();
+	for (int i = 0; i < n_vertices; i++)
+	{
+        if (dirichlet_bc_mask[i])
+        {
+			fix_center += X.row(i).transpose();
+			fix_n++;
+        }
+	}
+	fix_center /= fix_n;
+	for (int i = 0; i < n_vertices; i++)
+	{
+        if (dirichlet_bc_mask[i])
+        {
+			fix_rad += (X.row(i).transpose() - fix_center).norm();
+        }
+	}
+	fix_rad /= fix_n;
+        fix_rad *= 2.5;
+    fix_center += Vector3d(0, 0, -fix_rad);
+	sphere_center = fix_center.cast<float>();
+    sphere_radius = fix_rad;
+    // std::cout << "center:\n" << sphere_center << std::endl;
+    // std::cout << "radius: " << sphere_radius << std::endl;
 }
 
 // There are different types of mass spring energy:
@@ -329,6 +362,32 @@ bool MassSpring::update_dirichlet_bc_vertices(const MatrixXd &control_vertices)
 	   int control_idx = dirichlet_bc_control_pair[i].second;
 	   X.row(idx) = control_vertices.row(control_idx);
    }
+    unsigned n_vertices = X.rows();
+    n_active = n_vertices;
+    for (int i = 0; i < n_vertices; i++)
+        if (dirichlet_bc_mask[i])
+            n_active--;
+
+	// Select Matrix (K & Kt) 
+	std::vector<Triplet<double>> tripletList;
+	tripletList.reserve(n_active);
+
+	K = SparseMatrix<double>(3 * n_active, 3 * n_vertices);
+	Kt = SparseMatrix<double>(3 * n_vertices, 3 * n_active);
+	int active_i = 0;
+	for (int i = 0; i < n_vertices; i++)
+	{
+        if (!dirichlet_bc_mask[i])
+        {
+            tripletList.push_back({ active_i * 3 + 0, i * 3 + 0, 1 });
+			tripletList.push_back({ active_i * 3 + 1, i * 3 + 1, 1 });
+			tripletList.push_back({ active_i * 3 + 2, i * 3 + 2, 1 });
+			active_i++;
+        }
+	}
+	K.setFromTriplets(tripletList.begin(), tripletList.end());
+	Kt = K.transpose();
+
 
    return true; 
 }
